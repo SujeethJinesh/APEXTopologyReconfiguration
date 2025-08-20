@@ -1,0 +1,13 @@
+from __future__ import annotations
+
+from typing import Protocol
+
+
+class FS(Protocol):
+    async def read_file(self, path: str) -> bytes: ...
+
+    async def write_file(self, path: str, data: bytes) -> None: ...
+
+    async def patch_file(self, path: str, diff: str) -> None: ...
+
+    async def search_files(self, root: str, regex: str) -> list[str]: ...
