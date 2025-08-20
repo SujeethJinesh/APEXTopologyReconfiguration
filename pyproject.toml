@@ -9,7 +9,7 @@ description = "APEX Framework — MVP-First scaffolding (Milestone M0)"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "APEX Team" }]
-license = "Apache-2.0"
+license = { file = "LICENSE" }
 dependencies = []
 
 [project.optional-dependencies]
