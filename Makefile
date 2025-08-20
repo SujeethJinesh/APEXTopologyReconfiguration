@@ -5,9 +5,9 @@ lint:
 	black --check apex tests
 
 fmt:
-	black apex tests
 	ruff check --fix apex tests
 	isort apex tests
+	black apex tests
 
 test:
 	pytest -q

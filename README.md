@@ -1,5 +1,7 @@
 # APEX Framework — Milestone M0 (Scaffold + CI)
 
+[![CI](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/actions/workflows/ci.yml/badge.svg)](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/actions/workflows/ci.yml)
+
 This repo is scaffolded for the APEX MVP project.
 
 Milestone **M0** includes:
