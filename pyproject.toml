@@ -5,12 +5,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "apex-framework"
 version = "0.0.1"
-description = "APEX Framework — MVP-First scaffolding (Milestone M0-M1)"
+description = "APEX Framework — MVP-First scaffolding (M0–M2)"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "APEX Team" }]
 license = { file = "LICENSE" }
-dependencies = []
+dependencies = ["aiohttp>=3.9"]
 
 [project.optional-dependencies]
 dev = [
@@ -35,7 +35,6 @@ target-version = ["py311"]
 line-length = 100
 
 [tool.ruff.lint]
-# E,F = pycodestyle/pyflakes; I = import sorting
 select = ["E", "F", "I"]
 
 [tool.isort]

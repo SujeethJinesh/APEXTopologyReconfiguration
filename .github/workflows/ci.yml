@@ -20,12 +20,15 @@ jobs:
           pip install -e ".[dev]"
       - name: Lint
         run: make lint
-      - name: Test
-        run: make test
+      - name: Test (emit evidence)
+        run: |
+          # Determine milestone from branch name or use M2 as default
+          MILESTONE=$(echo ${{ github.ref_name }} | grep -oE 'M[0-9]+' || echo "M2")
+          ARTIFACTS_DIR=docs/${MILESTONE}/artifacts make test
       - name: Upload artifacts (if any)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: artifacts
-          path: artifacts/**
+          name: evidence-artifacts
+          path: docs/*/artifacts/**
           if-no-files-found: ignore
