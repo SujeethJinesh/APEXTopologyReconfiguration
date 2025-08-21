@@ -1,19 +1,13 @@
 """Tests for MCP FastMCP server wrappers."""
 
 import asyncio
+import importlib.util
 import os
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
-# Try importing FastMCP for test marking
-try:
-    import fastmcp
-
-    HAS_FASTMCP = True
-except ImportError:
-    HAS_FASTMCP = False
+HAS_FASTMCP = importlib.util.find_spec("fastmcp") is not None
 
 
 @pytest.fixture
@@ -106,9 +100,7 @@ class TestFastMCPServer:
         assert hasattr(server.test, "discover")
         assert hasattr(server.test, "run")
 
-    @pytest.mark.skipif(
-        not os.environ.get("APEX_MCP_SERVER"), reason="MCP server disabled"
-    )
+    @pytest.mark.skipif(not os.environ.get("APEX_MCP_SERVER"), reason="MCP server disabled")
     @patch("fastmcp.FastMCP.run_stdio")
     @pytest.mark.asyncio
     async def test_server_stdio_transport(self, mock_run_stdio):

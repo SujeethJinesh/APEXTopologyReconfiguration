@@ -4,7 +4,6 @@ This module provides the main interface agents use for A2A-compliant
 communication, enforcing topology rules and routing through the Router.
 """
 
-import asyncio
 from typing import Optional
 
 from apex.a2a.sdk_adapter import A2ACompliance

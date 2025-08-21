@@ -6,7 +6,6 @@ Off by default, enabled via APEX_MCP_SERVER environment variable.
 
 import asyncio
 import os
-from pathlib import Path
 from typing import Optional
 
 # Guard imports for optional FastMCP
@@ -123,9 +122,7 @@ class APEXMCPServer:
             return result.get("tests", [])
 
         @self.mcp.tool()
-        async def test_run(
-            selected: Optional[list[str]] = None, timeout_s: int = 120
-        ) -> dict:
+        async def test_run(selected: Optional[list[str]] = None, timeout_s: int = 120) -> dict:
             """Run tests with optional selection.
 
             Args:

@@ -1,7 +1,6 @@
 """Tests for A2A SDK integration and compliance wrapper."""
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -94,9 +93,7 @@ class TestA2AEnvelopeAndRouting:
             )
 
         # Within limit should work
-        await protocol.send(
-            sender="planner", recipients=["coder", "runner"], content="Broadcast"
-        )
+        await protocol.send(sender="planner", recipients=["coder", "runner"], content="Broadcast")
 
         # Should create 2 messages
         assert router.route.call_count == 2
@@ -158,9 +155,7 @@ class TestA2ACompliance:
     @pytest.mark.asyncio
     async def test_from_a2a_request_star_topology(self, router, switch):
         """Test A2A request parsing with star topology enforcement."""
-        compliance = A2ACompliance(
-            router, switch, roles=["planner", "coder"], planner_id="planner"
-        )
+        compliance = A2ACompliance(router, switch, roles=["planner", "coder"], planner_id="planner")
 
         # Non-planner sending (should route to planner)
         request = {

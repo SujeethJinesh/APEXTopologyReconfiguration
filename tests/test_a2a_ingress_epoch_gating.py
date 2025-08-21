@@ -1,7 +1,6 @@
 """Tests for A2A ingress with epoch gating during switch operations."""
 
 import asyncio
-import json
 import os
 from unittest.mock import AsyncMock, MagicMock, patch
 

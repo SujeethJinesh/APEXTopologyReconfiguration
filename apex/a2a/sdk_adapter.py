@@ -6,9 +6,7 @@ All messages still route through our Router - no bypass allowed.
 """
 
 import asyncio
-import json
 import os
-from typing import Any, Optional
 
 from apex.runtime.message import Message
 from apex.runtime.router import Router
@@ -234,7 +232,7 @@ class A2ACompliance:
             recipients = params.get("recipients", [])
             if len(recipients) > self.fanout_limit:
                 raise ValueError(f"Fanout exceeds limit of {self.fanout_limit}")
-            for recipient in recipients[:self.fanout_limit]:
+            for recipient in recipients[: self.fanout_limit]:
                 messages.append(
                     Message(
                         episode_id=f"a2a-{metadata.get('episode', 'default')}",
@@ -266,8 +264,7 @@ class A2ACompliance:
 
         if not HAS_A2A_HTTP:
             raise RuntimeError(
-                "A2A HTTP server not available. "
-                "Install with: pip install 'apex-framework[a2a]'"
+                "A2A HTTP server not available. " "Install with: pip install 'apex-framework[a2a]'"
             )
 
         # Create ingress app using SDK helper
