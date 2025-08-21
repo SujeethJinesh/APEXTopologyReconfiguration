@@ -21,6 +21,8 @@ dev = [
     "isort>=5.13.2",
     "pre-commit>=3.6",
 ]
+a2a = ["a2a-sdk>=0.3.0"]
+mcp = ["fastmcp>=2.11"]
 
 [tool.pytest.ini_options]
 minversion = "7.4"
