@@ -33,22 +33,31 @@ make test               # Run all tests including new async tests
 ```
 
 ## Results
-- ✅ All 12 tests passing (6 from M0 + 6 new in M1)
+- ✅ All 14 tests passing (6 from M0 + 8 new in M1)
 - ✅ Linting passes (ruff + black)
 - ✅ Epoch gating verified: No N+1 dequeue while N remains
 - ✅ FIFO order preserved within epochs and on ABORT
-- ✅ TTL expiry drops messages correctly
-- ✅ Retry increments attempt and sets redelivered flag
+- ✅ TTL expiry drops messages correctly with drop_reason="expired"
+- ✅ Retry enforces MAX_ATTEMPTS with drop_reason="max_attempts"
 - ✅ Dwell/cooldown enforcement works as specified
+- ✅ TOPOLOGY_CHANGED event reliably observable by consumers
+- ✅ ABORT tracks and reports drop counts in stats
 
 ## Artifacts
 None for this milestone (runtime artifacts will come with telemetry in later milestones)
 
 ## Open Questions
-None - all M1 requirements implemented and tested successfully
+None - all M1 requirements and review findings addressed
 
 ## Deviations from spec
 - Fixed Coordinator logic: Cooldown check precedes dwell check to ensure cooldown takes precedence immediately after a switch (when steps_since_switch is reset to 0)
+
+## Post-Review Improvements (Commit d85f6d0)
+Based on review findings, the following critical improvements were made:
+1. **MAX_ATTEMPTS enforcement**: Router.retry() now internally enforces retry limits to prevent unbounded loops
+2. **TTL telemetry**: Expired messages set drop_reason="expired" for future metrics
+3. **Event reliability**: TOPOLOGY_CHANGED no longer clears immediately, allowing reliable consumer observation
+4. **ABORT telemetry**: Drop counts tracked and returned in switch stats for capacity planning
 
 ## Definition of Done (DoD)
 - ✅ Router with epoch-gated FIFO, TTL, and retry
