@@ -5,4 +5,4 @@ apex/integrations/mcp/test_api.py:6
     class Test(Protocol):
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-- generated xml file: /Users/sujeethjinesh/Desktop/APEXTopologyReconfiguration/artifacts/M2/junit.xml -
+- generated xml file: /Users/sujeethjinesh/Desktop/APEXTopologyReconfiguration/docs/M2/artifacts/junit.xml -
