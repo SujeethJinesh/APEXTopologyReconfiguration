@@ -51,14 +51,11 @@ class HTTPLLM(LLM):
                         # transient server error; retry if any attempts left
                         if attempt < tries - 1:
                             continue
-                        resp.raise_for_status()
-                    # Do not retry on 4xx client errors
+                        resp.raise_for_status()  # last attempt: surface 5xx
                     if 400 <= resp.status < 500:
-                        resp.raise_for_status()
-                    # For other non-2xx statuses
-                    resp.raise_for_status()
+                        resp.raise_for_status()  # do not retry on client errors
+                    resp.raise_for_status()  # covers other non-2xx (e.g., 3xx)
                     data = await resp.json()
-                    # Expect text/tokens_in/tokens_out
                     return {
                         "text": data.get("text", ""),
                         "tokens_in": int(data.get("tokens_in", 0)),
