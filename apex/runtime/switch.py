@@ -42,7 +42,7 @@ class SwitchEngine:
             while self._router.active_has_pending():
                 if time.monotonic() >= deadline:
                     # ABORT
-                    await self._router.abort_switch()
+                    dropped_by_reason = await self._router.abort_switch()
                     t_abort_done = time.monotonic()
                     return {
                         "ok": False,
@@ -54,7 +54,7 @@ class SwitchEngine:
                                 "commit_or_abort": 0,
                             },
                             "migrated": 0,
-                            "dropped_by_reason": {},
+                            "dropped_by_reason": dropped_by_reason,
                         },
                     }
                 await asyncio.sleep(0.001)

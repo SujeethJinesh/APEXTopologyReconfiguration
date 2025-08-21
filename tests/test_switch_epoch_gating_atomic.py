@@ -71,3 +71,39 @@ async def test_abort_reenqueue_fifo():
     for _ in range(3):
         out.append(await r.dequeue(AgentID("a")))
     assert [m.payload["i"] for m in out] == [1, 2, 3]
+
+
+@pytest.mark.asyncio
+async def test_abort_tracks_drop_counts():
+    """Test that ABORT properly tracks dropped messages when queues are full."""
+    # Create router with very small queue capacity
+    r = Router(recipients=["a"], queue_cap_per_agent=2)
+    se = SwitchEngine(r)
+
+    # Fill active queue to capacity
+    await r.route(Message("ep", "m1", AgentID("x"), AgentID("a"), Epoch(0), {"i": 1}))
+    await r.route(Message("ep", "m2", AgentID("x"), AgentID("a"), Epoch(0), {"i": 2}))
+
+    # Start switch
+    task = asyncio.create_task(se.switch_to("flat"))
+
+    # While switching, enqueue messages that will go to next
+    await asyncio.sleep(0)
+    await r.route(Message("ep", "m3", AgentID("x"), AgentID("a"), Epoch(0), {"i": 3}))
+    await r.route(Message("ep", "m4", AgentID("x"), AgentID("a"), Epoch(0), {"i": 4}))
+
+    # Do NOT drain active; wait for abort
+    res = await task
+    assert res["ok"] is False
+
+    # Check that drops were tracked in stats
+    assert "queue_full" in res["stats"]["dropped_by_reason"]
+    assert res["stats"]["dropped_by_reason"]["queue_full"] == 2  # m3 and m4 dropped
+
+    # Verify only original messages in queue
+    out = []
+    for _ in range(2):
+        msg = await r.dequeue(AgentID("a"))
+        if msg:
+            out.append(msg.payload["i"])
+    assert out == [1, 2]

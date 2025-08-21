@@ -5,7 +5,7 @@ import time
 from dataclasses import replace
 from typing import Dict, Iterable, List, Optional, Set
 
-from apex.config.defaults import MESSAGE_TTL_S, QUEUE_CAP_PER_AGENT
+from apex.config.defaults import MAX_ATTEMPTS, MESSAGE_TTL_S, QUEUE_CAP_PER_AGENT
 
 from .errors import InvalidRecipientError, QueueFullError
 from .message import AgentID, Epoch, Message
@@ -83,10 +83,12 @@ class Router:
             }
             self._route_to_next = False
 
-    async def abort_switch(self) -> None:
+    async def abort_switch(self) -> Dict[str, int]:
         """
         Re-enqueue all Q_next messages after the tail of Q_active per-recipient, preserving FIFO.
+        Returns dict of drop counts by reason.
         """
+        dropped_by_reason: Dict[str, int] = {}
         async with self._lock:
             for r in self._recipients:
                 qn = self._q_next[r]
@@ -99,11 +101,13 @@ class Router:
                     if qa.full():
                         # if active is full, drop; mark drop reason
                         m.drop_reason = "queue_full"
+                        dropped_by_reason["queue_full"] = dropped_by_reason.get("queue_full", 0) + 1
                         continue
                     await qa.put(m)
             # clear next queues
             self._q_next = {r: asyncio.Queue(maxsize=self._cap) for r in self._recipients}
             self._route_to_next = False
+        return dropped_by_reason
 
     # -------- Routing & Dequeue --------
 
@@ -160,7 +164,8 @@ class Router:
                 return None
             now = time.monotonic()
             if m.expires_ts and now > m.expires_ts:
-                # drop silently (caller observes no message)
+                # Mark as expired before dropping
+                m.drop_reason = "expired"
                 continue
             return m
 
@@ -170,8 +175,13 @@ class Router:
         """
         Re-enqueue message at the tail of the active queue for its recipient.
         Increments attempt, sets redelivered=True.
-        Drops if attempt exceeds MAX_ATTEMPTS (handled by caller in tests).
+        Drops if attempt exceeds MAX_ATTEMPTS.
         """
+        # Check if max attempts exceeded
+        if msg.attempt >= MAX_ATTEMPTS:
+            msg.drop_reason = "max_attempts"
+            return False
+
         msg.attempt += 1
         msg.redelivered = True
         msg.drop_reason = None

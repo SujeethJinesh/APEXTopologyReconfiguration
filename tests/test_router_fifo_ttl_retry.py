@@ -31,6 +31,10 @@ async def test_ttl_drop_on_dequeue():
     m = Message("e", "m", AgentID("x"), AgentID("a"), Epoch(0), {})
     await r.route(m)
     await asyncio.sleep(0.02)  # let it expire
+
+    # Store the message reference before dequeue to check drop_reason
+    # Note: We can't directly check drop_reason since expired messages
+    # are dropped internally, but the implementation sets it
     got = await r.dequeue(AgentID("a"))
     assert got is None, "expired message should have been dropped"
 
@@ -50,11 +54,21 @@ async def test_retry_increments_attempt_and_redelivered():
     assert second is not None
     assert second.attempt == 1 and second.redelivered is True
 
-    # Exhaust retries
-    second.attempt = MAX_ATTEMPTS
+    # Test that MAX_ATTEMPTS is enforced
+    # Set to MAX_ATTEMPTS - 1 so next retry will hit the limit
+    second.attempt = MAX_ATTEMPTS - 1
     ok2 = await r.retry(second)
-    # Router.retry returns False if queue is full, but we simulate drop by
-    # caller policy when attempts exceeded. Here we simply verify it didn't
-    # set drop_reason and can still accept; MAX_ATTEMPTS enforcement will
-    # be layered later.
-    assert ok2 is not None  # Use ok2 to satisfy linter
+    assert ok2 is True  # This retry should succeed (at MAX_ATTEMPTS now)
+
+    third = await r.dequeue(AgentID("a"))
+    assert third is not None
+    assert third.attempt == MAX_ATTEMPTS
+
+    # Now try to retry again - should fail
+    ok3 = await r.retry(third)
+    assert ok3 is False
+    assert third.drop_reason == "max_attempts"
+
+    # Message should not be in queue
+    fourth = await r.dequeue(AgentID("a"))
+    assert fourth is None

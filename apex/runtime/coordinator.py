@@ -47,5 +47,5 @@ class Coordinator:
                 self._steps_since_switch = 0
                 self._cooldown_remaining = self._cooldown_steps
                 self.TOPOLOGY_CHANGED.set()
-                self.TOPOLOGY_CHANGED.clear()
+                # Don't clear immediately - let consumers clear after handling
             return {"accepted": True, "reason": None, "switch_result": res}
