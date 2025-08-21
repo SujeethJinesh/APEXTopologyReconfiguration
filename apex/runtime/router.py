@@ -115,8 +115,11 @@ class Router:
         """
         Enqueue a message. If recipient == "BROADCAST", fan out to all recipients
         except the sender. TTL: if expires_ts == 0, set to created_ts + self._ttl_s.
-        Returns True if all enqueues succeed; False if any drop
-        (e.g., queue full or invalid recipient).
+
+        Behavior:
+          - Raises InvalidRecipientError if recipient unknown.
+          - Raises QueueFullError if the target queue is full.
+          - Returns True on successful enqueue (or on all fanout enqueues).
         """
         if msg.recipient == "BROADCAST":
             targets = [r for r in self._recipients if r != msg.sender]

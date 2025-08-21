@@ -12,6 +12,8 @@ class Coordinator:
     """
     Holds switch_lock at orchestration level, enforces dwell/cooldown,
     and raises TOPOLOGY_CHANGED when done.
+
+    Note: Consumers must call TOPOLOGY_CHANGED.clear() after handling the event.
     """
 
     def __init__(self, switch_engine: SwitchEngine) -> None:
