@@ -1,0 +1,8 @@
+........................                                                 [100%]
+=============================== warnings summary ===============================
+apex/integrations/mcp/test_api.py:6
+  /Users/sujeethjinesh/Desktop/APEXTopologyReconfiguration/apex/integrations/mcp/test_api.py:6: PytestCollectionWarning: cannot collect test class 'Test' because it has a __init__ constructor (from: tests/test_protocols_importable.py)
+    class Test(Protocol):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+- generated xml file: /Users/sujeethjinesh/Desktop/APEXTopologyReconfiguration/artifacts/M2/junit.xml -

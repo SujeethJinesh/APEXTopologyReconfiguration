@@ -20,8 +20,8 @@ jobs:
           pip install -e ".[dev]"
       - name: Lint
         run: make lint
-      - name: Test
-        run: make test
+      - name: Test (emit evidence)
+        run: ARTIFACTS_DIR=artifacts/M2 make test
       - name: Upload artifacts (if any)
         if: always()
         uses: actions/upload-artifact@v4
