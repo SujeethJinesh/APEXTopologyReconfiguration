@@ -25,6 +25,10 @@ pip install -e ".[dev,a2a,mcp]"
 export APEX_A2A_INGRESS=1
 export APEX_MCP_SERVER=1
 ARTIFACTS_DIR=docs/M3/artifacts make test
+
+# Run specific M3 tests:
+python -m pytest tests/test_a2a_chain_topology.py -v
+python -m pytest tests/test_mcp_traversal_denial.py -v
 ```
 
 ## Artifacts
@@ -72,8 +76,89 @@ ARTIFACTS_DIR=docs/M3/artifacts make test
 
 4. **Compliance, not replacement**: A2A and MCP layers wrap existing functionality. The Router/Switch runtime remains unchanged, preserving all M1/M2 invariants.
 
+## Sample Data
+
+### A2A Envelope → Internal Message Mapping
+
+**A2A Request (ingress):**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "send",
+  "id": 1,
+  "params": {
+    "sender": "coder",
+    "recipient": "runner",
+    "content": "Execute test suite",
+    "metadata": {"topology": "chain"}
+  }
+}
+```
+
+**Internal Message (after conversion):**
+```python
+Message(
+    episode_id="a2a-episode",
+    msg_id="msg-a7f3d2e891c64b8fa9e2341567890abc",  # UUID hex
+    sender="coder",
+    recipient="runner",
+    topo_epoch=1,  # From switch.active()[1]
+    payload={"content": "Execute test suite"},
+    attempt=0,
+    redelivered=False
+)
+```
+
+### Chain Topology Enforcement
+
+**Valid chain hop (succeeds):**
+```
+planner → coder: ✅ Allowed
+coder → runner: ✅ Allowed  
+runner → critic: ✅ Allowed
+```
+
+**Invalid chain hop (blocked):**
+```
+planner → runner: ❌ ValueError: Chain topology violation: planner must send to coder, not runner
+runner → planner: ❌ ValueError: Chain topology violation: runner must send to critic, not planner
+```
+
+### MCP Traversal Denial
+
+**Attempted traversal:**
+```python
+await server.fs.read("../../../etc/passwd")
+```
+
+**Denial response:**
+```
+PermissionError: path escapes whitelist root: ../../../etc/passwd
+```
+
+### Router Error Mapping
+
+**Queue full scenario:**
+```python
+# Router raises: QueueFullError("coder", 100)
+# A2A response:
+{
+  "jsonrpc": "2.0",
+  "error": {
+    "code": -32603,
+    "message": "Queue full: Queue for coder is full (100 messages)"
+  },
+  "id": 1
+}
+```
+
 ## Deviations
-None. All specifications implemented as required.
+None. All specifications implemented as required, including:
+- Chain topology with proper Message construction
+- UUID-based msg_id generation  
+- Next-hop enforcement for chain
+- Router error mapping to A2A envelopes
+- MCP traversal protection via LocalFS whitelist
 
 ## Sign-off Checklist
 - [x] Artifacts present under `docs/M3/artifacts/`

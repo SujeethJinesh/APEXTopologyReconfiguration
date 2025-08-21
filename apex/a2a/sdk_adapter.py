@@ -289,6 +289,8 @@ class A2ACompliance:
         Returns:
             dict: JSON-RPC response
         """
+        from apex.runtime.errors import InvalidRecipientError, QueueFullError
+
         try:
             # Convert to internal messages with topology enforcement
             messages = self.from_a2a_request(request_body)
@@ -303,6 +305,25 @@ class A2ACompliance:
                 "id": request_body.get("id"),
             }
 
+        except InvalidRecipientError as e:
+            return {
+                "jsonrpc": "2.0",
+                "error": {"code": -32602, "message": f"Invalid recipient: {str(e)}"},
+                "id": request_body.get("id"),
+            }
+        except QueueFullError as e:
+            return {
+                "jsonrpc": "2.0",
+                "error": {"code": -32603, "message": f"Queue full: {str(e)}"},
+                "id": request_body.get("id"),
+            }
+        except ValueError as e:
+            # Topology violations, etc
+            return {
+                "jsonrpc": "2.0",
+                "error": {"code": -32602, "message": str(e)},
+                "id": request_body.get("id"),
+            }
         except Exception as e:
             return {
                 "jsonrpc": "2.0",

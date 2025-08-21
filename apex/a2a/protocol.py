@@ -5,6 +5,7 @@ communication, enforcing topology rules and routing through the Router.
 """
 
 from typing import Optional
+from uuid import uuid4
 
 from apex.a2a.sdk_adapter import A2ACompliance
 from apex.runtime.message import Message
@@ -42,6 +43,16 @@ class A2AProtocol:
         self.topology = topology
         self.planner_id = planner_id
         self.fanout_limit = fanout_limit
+
+        # Define chain topology order
+        self.chain_order = ["planner", "coder", "runner", "critic", "summarizer"]
+        self.chain_next = {
+            "planner": "coder",
+            "coder": "runner",
+            "runner": "critic",
+            "critic": "summarizer",
+            "summarizer": "planner",
+        }
 
         # Initialize compliance layer
         roles = ["planner", "coder", "runner", "critic", "summarizer"]
@@ -84,7 +95,7 @@ class A2AProtocol:
                 messages.append(
                     Message(
                         episode_id="a2a-episode",
-                        msg_id=f"msg-{id(content)}",
+                        msg_id=f"msg-{uuid4().hex}",
                         sender=sender,
                         recipient=self.planner_id,
                         topo_epoch=self.switch.active()[1],
@@ -96,7 +107,7 @@ class A2AProtocol:
                 messages.append(
                     Message(
                         episode_id="a2a-episode",
-                        msg_id=f"msg-{id(content)}",
+                        msg_id=f"msg-{uuid4().hex}",
                         sender=sender,
                         recipient=recipient,
                         topo_epoch=self.switch.active()[1],
@@ -108,7 +119,7 @@ class A2AProtocol:
                 messages.append(
                     Message(
                         episode_id="a2a-episode",
-                        msg_id=f"msg-{id(content)}",
+                        msg_id=f"msg-{uuid4().hex}",
                         sender=sender,
                         recipient=recipient,
                         topo_epoch=self.switch.active()[1],
@@ -119,15 +130,26 @@ class A2AProtocol:
                 raise ValueError("Star topology requires recipient")
 
         elif self.topology == "chain":
-            # Chain topology: sequential processing
+            # Chain topology: sequential processing with next-hop enforcement
             if not recipient:
                 raise ValueError("Chain topology requires recipient")
+
+            # Enforce next-hop semantics
+            expected_next = self.chain_next.get(sender)
+            if expected_next and recipient != expected_next:
+                raise ValueError(
+                    f"Chain topology violation: {sender} must send to "
+                    f"{expected_next}, not {recipient}"
+                )
+
             messages.append(
                 Message(
+                    episode_id="a2a-episode",
+                    msg_id=f"msg-{uuid4().hex}",
                     sender=sender,
                     recipient=recipient,
-                    content=content,
-                    epoch=self.switch.active_epoch,
+                    topo_epoch=self.switch.active()[1],
+                    payload={"content": content},
                 )
             )
 
@@ -142,7 +164,7 @@ class A2AProtocol:
                 messages.append(
                     Message(
                         episode_id="a2a-episode",
-                        msg_id=f"msg-{id(r)}",
+                        msg_id=f"msg-{uuid4().hex}",
                         sender=sender,
                         recipient=r,
                         topo_epoch=self.switch.active()[1],
@@ -154,27 +176,47 @@ class A2AProtocol:
             raise ValueError(f"Unknown topology: {self.topology}")
 
         # Route messages through Router (never bypass!)
+        from apex.runtime.errors import InvalidRecipientError, QueueFullError
+
         envelopes = []
         for msg in messages:
-            await self.router.route(msg)
-            # Build A2A envelope for response
-            envelope = self.compliance.to_a2a_envelope(msg)
-            envelopes.append(envelope)
+            try:
+                await self.router.route(msg)
+                # Build A2A envelope for response
+                envelope = self.compliance.to_a2a_envelope(msg)
+                envelopes.append(envelope)
+            except InvalidRecipientError as e:
+                # Return error envelope for invalid recipient
+                return {
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32602,
+                        "message": f"Invalid recipient: {str(e)}",
+                    },
+                }
+            except QueueFullError as e:
+                # Return error envelope for queue full
+                return {
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32603,
+                        "message": f"Queue full: {str(e)}",
+                    },
+                }
 
         # Return single envelope or list based on count
         return envelopes[0] if len(envelopes) == 1 else {"envelopes": envelopes}
 
-    async def receive(self, agent_id: str, timeout: float = 1.0) -> Optional[Message]:
+    async def receive(self, agent_id: str) -> Optional[Message]:
         """Receive next message for agent.
 
         Args:
             agent_id: Receiving agent ID
-            timeout: Max time to wait
 
         Returns:
-            Message or None if timeout
+            Message or None if no message available
         """
-        return await self.router.dequeue(agent_id, timeout=timeout)
+        return await self.router.dequeue(agent_id)
 
     def get_agent_card(self) -> dict:
         """Get A2A-compliant agent card.

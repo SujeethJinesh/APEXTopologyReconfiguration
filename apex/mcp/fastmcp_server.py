@@ -64,7 +64,8 @@ class APEXMCPServer:
             Returns:
                 str: File contents
             """
-            return await self.fs.read(path)
+            data = await self.fs.read_file(path)
+            return data.decode("utf-8")
 
         @self.mcp.tool()
         async def fs_write(path: str, data: str) -> bool:
@@ -77,7 +78,7 @@ class APEXMCPServer:
             Returns:
                 bool: Success status
             """
-            await self.fs.write(path, data)
+            await self.fs.write_file(path, data.encode("utf-8"))
             return True
 
         @self.mcp.tool()
@@ -91,8 +92,8 @@ class APEXMCPServer:
             Returns:
                 bool: Success status
             """
-            result = await self.fs.patch(path, diff)
-            return result.get("success", False)
+            await self.fs.patch_file(path, diff)
+            return True
 
         @self.mcp.tool()
         async def fs_search(root: str, regex: str) -> list[str]:
@@ -105,8 +106,7 @@ class APEXMCPServer:
             Returns:
                 list[str]: Matching file paths (sorted)
             """
-            results = await self.fs.search_files(root, regex)
-            return results.get("files", [])
+            return await self.fs.search_files(root, regex)
 
     def _register_test_tools(self):
         """Register test runner tools with MCP."""

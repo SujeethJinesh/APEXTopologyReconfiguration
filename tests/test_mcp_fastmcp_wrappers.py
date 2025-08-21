@@ -52,14 +52,14 @@ class TestFastMCPServer:
 
     @pytest.mark.asyncio
     async def test_fs_read_tool(self):
-        """Test fs_read tool wraps LocalFS.read."""
+        """Test fs_read tool wraps LocalFS.read_file."""
         from apex.mcp.fastmcp_server import APEXMCPServer
 
         server = APEXMCPServer(whitelist=["/tmp"])
 
         # Just verify the fs adapter is available
         assert server.fs is not None
-        assert hasattr(server.fs, "read")
+        assert hasattr(server.fs, "read_file")
 
     @pytest.mark.asyncio
     async def test_fs_search_deterministic_order(self):
@@ -81,12 +81,12 @@ class TestFastMCPServer:
 
         # Try to read outside whitelist
         with pytest.raises(PermissionError):
-            await server.fs.read("/etc/passwd")
+            await server.fs.read_file("/etc/passwd")
 
         # Reading within whitelist should work
         test_file = temp_workspace / "test.txt"
-        content = await server.fs.read(str(test_file))
-        assert content == "Original content"
+        content = await server.fs.read_file(str(test_file))
+        assert content == b"Original content"
 
     @pytest.mark.asyncio
     async def test_test_tools_registered(self):
