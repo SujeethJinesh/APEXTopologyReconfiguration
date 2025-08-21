@@ -52,12 +52,18 @@ None - all M1 requirements and review findings addressed
 ## Deviations from spec
 - Fixed Coordinator logic: Cooldown check precedes dwell check to ensure cooldown takes precedence immediately after a switch (when steps_since_switch is reset to 0)
 
-## Post-Review Improvements (Commit d85f6d0)
+## Post-Review Improvements
 Based on review findings, the following critical improvements were made:
+
+### Critical Fixes (Commit d85f6d0)
 1. **MAX_ATTEMPTS enforcement**: Router.retry() now internally enforces retry limits to prevent unbounded loops
 2. **TTL telemetry**: Expired messages set drop_reason="expired" for future metrics
 3. **Event reliability**: TOPOLOGY_CHANGED no longer clears immediately, allowing reliable consumer observation
 4. **ABORT telemetry**: Drop counts tracked and returned in switch stats for capacity planning
+
+### Documentation Clarifications (Commit 9d191a3)
+1. **Router.route() docstring**: Updated to accurately describe exception behavior (raises InvalidRecipientError, QueueFullError)
+2. **Coordinator docstring**: Added explicit note that consumers must clear TOPOLOGY_CHANGED after handling
 
 ## Definition of Done (DoD)
 - ✅ Router with epoch-gated FIFO, TTL, and retry
