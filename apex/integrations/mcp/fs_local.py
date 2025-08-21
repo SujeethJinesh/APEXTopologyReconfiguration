@@ -87,6 +87,7 @@ class LocalFS(FS):
         """
         Search file contents under (whitelisted_root / root) for regex occurrences.
         Returns relative paths (to whitelist root) of files whose contents match.
+        Results are sorted for deterministic output.
         """
         subroot = self._resolve(root)
         pattern = re.compile(regex)
