@@ -41,6 +41,10 @@ class PytestAdapter(Test):
             timed_out = False
         except asyncio.TimeoutError:
             proc.kill()
+            try:
+                await asyncio.wait_for(proc.wait(), timeout=5)
+            except asyncio.TimeoutError:
+                pass  # Process didn't terminate cleanly, but we tried
             timed_out = True
             out = b""
             code = -1

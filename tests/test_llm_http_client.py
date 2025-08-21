@@ -77,3 +77,22 @@ async def test_llm_http_timeout():
                 await llm.generate("x", 1)
     finally:
         await runner.cleanup()
+
+
+@pytest.mark.asyncio
+async def test_llm_http_no_retry_on_4xx():
+    """Test that 4xx errors are not retried."""
+    calls = {"n": 0}
+
+    async def handler(request):
+        calls["n"] += 1
+        return web.Response(status=400)
+
+    runner, base = await _start_test_server(handler)
+    try:
+        async with HTTPLLM(base, timeout_s=1.0, retries=1) as llm:
+            with pytest.raises(Exception):  # aiohttp.ClientResponseError
+                await llm.generate("x", 1)
+        assert calls["n"] == 1, "Should not retry on 4xx errors"
+    finally:
+        await runner.cleanup()

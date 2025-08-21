@@ -43,16 +43,20 @@ class HTTPLLM(LLM):
         url = f"{self._base_url}/generate"
         payload = {"prompt": prompt, "max_tokens": int(max_tokens)}
 
-        last_exc: Optional[Exception] = None
         tries = self._retries + 1
         for attempt in range(tries):
             try:
                 async with self._session.post(url, json=payload) as resp:
                     if 500 <= resp.status < 600:
-                        # transient; retry if any left
+                        # transient server error; retry if any attempts left
                         if attempt < tries - 1:
                             continue
                         resp.raise_for_status()
+                    # Do not retry on 4xx client errors
+                    if 400 <= resp.status < 500:
+                        resp.raise_for_status()
+                    # For other non-2xx statuses
+                    resp.raise_for_status()
                     data = await resp.json()
                     # Expect text/tokens_in/tokens_out
                     return {
@@ -61,12 +65,8 @@ class HTTPLLM(LLM):
                         "tokens_out": int(data.get("tokens_out", 0)),
                     }
             except asyncio.TimeoutError:
-                # surface timeouts
+                # Bubble timeout errors without retry
                 raise
-            except Exception as e:
-                last_exc = e
-                if attempt < tries - 1:
-                    continue
+            except Exception:
+                # Non-5xx errors: don't retry per contract
                 raise
-        # unreachable
-        raise last_exc if last_exc else RuntimeError("LLM request failed")

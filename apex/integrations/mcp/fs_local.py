@@ -93,16 +93,23 @@ class LocalFS(FS):
 
         def _scan() -> List[str]:
             out: List[str] = []
-            for dirpath, _, filenames in os.walk(subroot):
+            for dirpath, _, filenames in os.walk(subroot, followlinks=False):
                 for fn in filenames:
                     p = Path(dirpath) / fn
                     try:
-                        content = p.read_text(encoding="utf-8", errors="ignore")
+                        # Resolve symlinks and validate target is still under root
+                        rp = p.resolve(strict=False)
+                        rp.relative_to(self._root)  # Will raise if outside root
+                    except Exception:
+                        continue  # Skip files that escape the root
+                    try:
+                        content = rp.read_text(encoding="utf-8", errors="ignore")
                     except Exception:
                         continue
                     if pattern.search(content):
-                        rel = p.relative_to(self._root).as_posix()
+                        rel = rp.relative_to(self._root).as_posix()
                         out.append(rel)
+            out.sort()  # Ensure deterministic results
             return out
 
         return await asyncio.to_thread(_scan)

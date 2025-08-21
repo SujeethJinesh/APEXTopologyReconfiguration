@@ -40,3 +40,23 @@ async def test_fs_search_files_content_regex(tmp_path: Path):
     await fs.write_file("y.txt", b"hay needle hay")
     matches = await fs.search_files(".", r"needle")
     assert matches == ["y.txt"]
+
+
+@pytest.mark.asyncio
+async def test_fs_search_files_ignores_symlink_escape(tmp_path, tmp_path_factory):
+    """Test that search_files does not follow symlinks that escape the whitelist."""
+    outside = tmp_path_factory.mktemp("outside")
+    (outside / "secret.txt").write_text("needle", encoding="utf-8")
+
+    fs_root = tmp_path / "root"
+    fs_root.mkdir()
+
+    # Best-effort: create symlink inside root -> outside file
+    try:
+        (fs_root / "link.txt").symlink_to(outside / "secret.txt")
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks not supported on this platform")
+
+    fs = LocalFS(str(fs_root))
+    matches = await fs.search_files(".", r"needle")
+    assert matches == [], "must not read through symlink to outside"
