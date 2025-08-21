@@ -1,0 +1,42 @@
+from pathlib import Path
+
+import pytest
+
+from apex.integrations.mcp.fs_local import LocalFS
+
+
+@pytest.mark.asyncio
+async def test_fs_whitelist_read_write_and_escape(tmp_path: Path):
+    fs = LocalFS(str(tmp_path))
+    await fs.write_file("a/b.txt", b"content")
+    data = await fs.read_file("a/b.txt")
+    assert data == b"content"
+
+    # Attempt to escape the whitelist
+    with pytest.raises(PermissionError):
+        await fs.write_file("../escape.txt", b"x")
+
+
+@pytest.mark.asyncio
+async def test_fs_patch_minimal_unified_diff(tmp_path: Path):
+    fs = LocalFS(str(tmp_path))
+    await fs.write_file("file.txt", b"hello world")
+    diff = """--- a/file.txt
++++ b/file.txt
+@@
+- world
++ APEX
+@@
+"""
+    await fs.patch_file("file.txt", diff)
+    data = await fs.read_file("file.txt")
+    assert data.decode("utf-8") == "hello APEX"
+
+
+@pytest.mark.asyncio
+async def test_fs_search_files_content_regex(tmp_path: Path):
+    fs = LocalFS(str(tmp_path))
+    await fs.write_file("x.txt", b"hay hay")
+    await fs.write_file("y.txt", b"hay needle hay")
+    matches = await fs.search_files(".", r"needle")
+    assert matches == ["y.txt"]
