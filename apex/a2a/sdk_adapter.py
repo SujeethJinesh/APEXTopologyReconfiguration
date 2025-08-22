@@ -201,10 +201,15 @@ class A2ACompliance:
         else:
             params = payload
 
-        # Determine topology from metadata or default
+        # Get active topology from switch (NEVER trust metadata!)
+        topology, epoch = self.switch.active()
+        
+        # Metadata is only informational, not for enforcement
         metadata = params.get("metadata", {})
-        topology = metadata.get("topology", "star")
-
+        # Store what external claimed (for debugging) but don't use it
+        if "topology" in metadata:
+            metadata["claimed_topology"] = metadata["topology"]
+        
         # Apply topology rules and generate messages
         messages = []
         sender = params.get("sender", "external")
@@ -225,7 +230,7 @@ class A2ACompliance:
                         msg_id=f"msg-{uuid4().hex}",
                         sender=sender,
                         recipient=self.planner_id,
-                        topo_epoch=self.switch.active()[1],
+                        topo_epoch=epoch,
                         payload={"content": content, "ext_request_id": ext_request_id} if ext_request_id else {"content": content},
                     )
                 )
@@ -239,7 +244,7 @@ class A2ACompliance:
                             msg_id=f"msg-{uuid4().hex}",
                             sender=sender,
                             recipient=recipient,
-                            topo_epoch=self.switch.active()[1],
+                            topo_epoch=epoch,
                             payload={"content": content, "ext_request_id": ext_request_id} if ext_request_id else {"content": content},
                         )
                     )
@@ -260,7 +265,7 @@ class A2ACompliance:
                         msg_id=f"msg-{uuid4().hex}",
                         sender=sender,
                         recipient="planner",
-                        topo_epoch=self.switch.active()[1],
+                        topo_epoch=epoch,
                         payload={"content": content, "ext_request_id": ext_request_id} if ext_request_id else {"content": content},
                     )
                 )
@@ -278,7 +283,7 @@ class A2ACompliance:
                         msg_id=f"msg-{uuid4().hex}",
                         sender=sender,
                         recipient=recipient,
-                        topo_epoch=self.switch.active()[1],
+                        topo_epoch=epoch,
                         payload={"content": content, "ext_request_id": ext_request_id} if ext_request_id else {"content": content},
                     )
                 )
@@ -295,7 +300,7 @@ class A2ACompliance:
                         msg_id=f"msg-{uuid4().hex}",  # Unique ID per recipient
                         sender=sender,
                         recipient=recipient,
-                        topo_epoch=self.switch.active()[1],
+                        topo_epoch=epoch,
                         payload={"content": content, "ext_request_id": ext_request_id} if ext_request_id else {"content": content},
                     )
                 )
