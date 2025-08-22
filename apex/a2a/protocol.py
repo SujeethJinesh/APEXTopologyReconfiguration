@@ -97,6 +97,12 @@ class A2AProtocol:
         messages = []
 
         if topology == "star":
+            # Star topology: requires single recipient (not recipients list)
+            if not recipient:
+                raise ValueError("Star topology requires recipient")
+            if recipients:
+                raise ValueError("Star topology requires recipient, not recipients list")
+            
             # Star topology: all non-planner communicate through planner
             if sender != self.planner_id and recipient != self.planner_id:
                 # Non-planner must route through planner
@@ -110,32 +116,18 @@ class A2AProtocol:
                         payload={"content": content},
                     )
                 )
-            elif sender == self.planner_id and recipient:
-                # Planner can send directly
-                messages.append(
-                    Message(
-                        episode_id="a2a-episode",
-                        msg_id=f"msg-{uuid4().hex}",
-                        sender=sender,
-                        recipient=recipient,
-                        topo_epoch=epoch,
-                        payload={"content": content},
-                    )
-                )
-            elif recipient:
-                # Direct send to planner allowed
-                messages.append(
-                    Message(
-                        episode_id="a2a-episode",
-                        msg_id=f"msg-{uuid4().hex}",
-                        sender=sender,
-                        recipient=recipient,
-                        topo_epoch=epoch,
-                        payload={"content": content},
-                    )
-                )
             else:
-                raise ValueError("Star topology requires recipient")
+                # Planner involved: direct send
+                messages.append(
+                    Message(
+                        episode_id="a2a-episode",
+                        msg_id=f"msg-{uuid4().hex}",
+                        sender=sender,
+                        recipient=recipient,
+                        topo_epoch=epoch,
+                        payload={"content": content},
+                    )
+                )
 
         elif topology == "chain":
             # Chain topology: sequential processing with next-hop enforcement
@@ -156,7 +148,7 @@ class A2AProtocol:
                     msg_id=f"msg-{uuid4().hex}",
                     sender=sender,
                     recipient=recipient,
-                    topo_epoch=self.switch.active()[1],
+                    topo_epoch=epoch,
                     payload={"content": content},
                 )
             )

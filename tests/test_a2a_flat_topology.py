@@ -226,3 +226,21 @@ class TestFlatTopologyEnforcement:
         
         msg = router.route.call_args[0][0]
         assert msg.topo_epoch == 10
+
+    @pytest.mark.asyncio
+    async def test_flat_all_messages_same_epoch_per_send(self, protocol, router, switch):
+        """Test all messages from one send have the same epoch."""
+        switch.active.return_value = ("flat", 7)
+        
+        await protocol.send(
+            sender="planner",
+            recipients=["coder", "runner", "critic"],
+            content="multi-recipient"
+        )
+        
+        assert router.route.call_count == 3
+        messages = [router.route.call_args_list[i][0][0] for i in range(3)]
+        
+        # All messages from this send should have the same epoch
+        epochs = {msg.topo_epoch for msg in messages}
+        assert epochs == {7}, "All messages from one send must have same epoch"

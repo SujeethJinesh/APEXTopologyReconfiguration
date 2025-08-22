@@ -32,7 +32,7 @@ def switch():
 @pytest.fixture
 def protocol(router, switch):
     """Create A2A protocol instance."""
-    return A2AProtocol(router, switch, topology="star", planner_id="planner")
+    return A2AProtocol(router, switch, topology="star", planner_id="planner", fanout_limit=3)
 
 
 class TestDynamicTopologySwitch:
@@ -248,3 +248,37 @@ class TestDynamicTopologySwitch:
             # All use current epoch
             assert msg.topo_epoch == i + 1
             router.route.reset_mock()
+
+    @pytest.mark.asyncio
+    async def test_single_epoch_capture_per_send(self, protocol, router, switch):
+        """Test that each send() captures epoch once and uses it consistently."""
+        # Start with flat topology for multi-message test
+        switch._topology = "flat"
+        switch._epoch = 3
+        
+        # Track epoch reads
+        original_active = switch.active
+        call_count = 0
+        
+        def counting_active():
+            nonlocal call_count
+            call_count += 1
+            return original_active()
+        
+        switch.active = MagicMock(side_effect=counting_active)
+        
+        # Send to multiple recipients
+        await protocol.send(
+            sender="planner",
+            recipients=["coder", "runner", "critic"],
+            content="multi-send"
+        )
+        
+        # Should have called switch.active() exactly once
+        assert call_count == 1, "switch.active() should be called exactly once per send()"
+        
+        # All messages should have the same epoch
+        assert router.route.call_count == 3
+        messages = [router.route.call_args_list[i][0][0] for i in range(3)]
+        epochs = {msg.topo_epoch for msg in messages}
+        assert epochs == {3}, "All messages from one send() must have same epoch"
