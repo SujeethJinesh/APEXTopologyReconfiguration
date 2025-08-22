@@ -7,6 +7,7 @@ All messages still route through our Router - no bypass allowed.
 
 import asyncio
 import os
+from uuid import uuid4
 
 from apex.runtime.message import Message
 from apex.runtime.router import Router
@@ -14,22 +15,35 @@ from apex.runtime.switch import SwitchEngine
 
 # Guard imports for optional A2A SDK
 try:
-    from a2a_sdk import AgentCard
-    from a2a_sdk.envelope import Envelope
-    from a2a_sdk.schema import validate_request
-
+    # Try official a2a module first
+    import a2a as a2a_mod
+    from a2a import AgentCard
+    from a2a.envelope import Envelope
+    from a2a.schema import validate_request
     HAS_A2A_SDK = True
 except ImportError:
-    HAS_A2A_SDK = False
-    AgentCard = None
-    Envelope = None
-    validate_request = None
+    try:
+        # Fallback to python_a2a if available
+        import python_a2a as a2a_mod
+        from python_a2a import AgentCard
+        from python_a2a.envelope import Envelope
+        from python_a2a.schema import validate_request
+        HAS_A2A_SDK = True
+    except ImportError:
+        HAS_A2A_SDK = False
+        a2a_mod = None
+        AgentCard = None
+        Envelope = None
+        validate_request = None
 
 # Guard imports for optional HTTP server
 try:
-    from a2a_sdk.http_server import create_ingress_app
-
-    HAS_A2A_HTTP = True
+    if a2a_mod:
+        from a2a.http_server import create_ingress_app
+        HAS_A2A_HTTP = True
+    else:
+        HAS_A2A_HTTP = False
+        create_ingress_app = None
 except ImportError:
     HAS_A2A_HTTP = False
     create_ingress_app = None
@@ -71,6 +85,16 @@ class A2ACompliance:
         self.fanout_limit = fanout_limit
         self.include_summarizer = include_summarizer
         self._ingress_task = None
+        
+        # Chain topology order for next-hop enforcement
+        self.chain_order = ["planner", "coder", "runner", "critic", "summarizer"]
+        self.chain_next = {
+            "planner": "coder",
+            "coder": "runner",
+            "runner": "critic",
+            "critic": "summarizer",
+            "summarizer": "planner",
+        }
 
     def agent_card(self) -> dict:
         """Build an A2A-compliant AgentCard.
@@ -147,6 +171,7 @@ class A2ACompliance:
                     "episode": msg.episode_id,
                     "redelivered": msg.redelivered,
                     "attempt": msg.attempt,
+                    "orig_request_id": msg.payload.get("ext_request_id") if msg.payload.get("ext_request_id") else None,
                 },
             },
         }
@@ -184,6 +209,11 @@ class A2ACompliance:
         messages = []
         sender = params.get("sender", "external")
         content = params.get("content", "")
+        
+        # Preserve external request ID if present
+        ext_request_id = params.get("id")
+        if ext_request_id and isinstance(params.get("metadata"), dict):
+            metadata["orig_request_id"] = ext_request_id
 
         if topology == "star":
             # All non-planner agents communicate through planner
@@ -192,11 +222,11 @@ class A2ACompliance:
                 messages.append(
                     Message(
                         episode_id=f"a2a-{metadata.get('episode', 'default')}",
-                        msg_id=f"msg-{params.get('id', 'auto')}",
+                        msg_id=f"msg-{uuid4().hex}",
                         sender=sender,
                         recipient=self.planner_id,
                         topo_epoch=self.switch.active()[1],
-                        payload={"content": content},
+                        payload={"content": content, "ext_request_id": ext_request_id} if ext_request_id else {"content": content},
                     )
                 )
             else:
@@ -206,26 +236,50 @@ class A2ACompliance:
                     messages.append(
                         Message(
                             episode_id=f"a2a-{metadata.get('episode', 'default')}",
-                            msg_id=f"msg-{params.get('id', 'auto')}",
+                            msg_id=f"msg-{uuid4().hex}",
                             sender=sender,
                             recipient=recipient,
                             topo_epoch=self.switch.active()[1],
-                            payload={"content": content},
+                            payload={"content": content, "ext_request_id": ext_request_id} if ext_request_id else {"content": content},
                         )
                     )
 
         elif topology == "chain":
-            # Sequential processing through roles
+            # Sequential processing through roles with next-hop enforcement
             recipient = params.get("recipient")
-            if recipient in self.roles:
+            
+            # External senders must enter through planner
+            if sender not in self.roles:
+                if recipient != "planner":
+                    raise ValueError(
+                        f"External chain ingress must route through planner, not {recipient}"
+                    )
                 messages.append(
                     Message(
                         episode_id=f"a2a-{metadata.get('episode', 'default')}",
-                        msg_id=f"msg-{params.get('id', 'auto')}",
+                        msg_id=f"msg-{uuid4().hex}",
+                        sender=sender,
+                        recipient="planner",
+                        topo_epoch=self.switch.active()[1],
+                        payload={"content": content, "ext_request_id": ext_request_id} if ext_request_id else {"content": content},
+                    )
+                )
+            else:
+                # Internal senders must follow chain next-hop
+                expected_next = self.chain_next.get(sender)
+                if expected_next and recipient != expected_next:
+                    raise ValueError(
+                        f"Chain topology violation: {sender} must send to "
+                        f"{expected_next}, not {recipient}"
+                    )
+                messages.append(
+                    Message(
+                        episode_id=f"a2a-{metadata.get('episode', 'default')}",
+                        msg_id=f"msg-{uuid4().hex}",
                         sender=sender,
                         recipient=recipient,
                         topo_epoch=self.switch.active()[1],
-                        payload={"content": content},
+                        payload={"content": content, "ext_request_id": ext_request_id} if ext_request_id else {"content": content},
                     )
                 )
 
@@ -238,11 +292,11 @@ class A2ACompliance:
                 messages.append(
                     Message(
                         episode_id=f"a2a-{metadata.get('episode', 'default')}",
-                        msg_id=f"msg-{params.get('id', 'auto')}",
+                        msg_id=f"msg-{uuid4().hex}",  # Unique ID per recipient
                         sender=sender,
                         recipient=recipient,
                         topo_epoch=self.switch.active()[1],
-                        payload={"content": content},
+                        payload={"content": content, "ext_request_id": ext_request_id} if ext_request_id else {"content": content},
                     )
                 )
 
