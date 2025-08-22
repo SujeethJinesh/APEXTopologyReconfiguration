@@ -2,7 +2,7 @@
 
 **Branch:** `sujinesh/M3`  
 **PR:** [#5](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/pull/5)  
-**Latest Commit:** `4268713c58a10e305d93e0c7a0d868328cefbd56`
+**Latest Commit:** `ef9c8b4` (2025-08-22)
 
 ## All Changed Files with Permalinks
 
@@ -96,9 +96,14 @@
     - Flat topology enforcement tests (10 tests)
     - Fanout limit, recipients list, FIFO order
 
+17. **tests/test_a2a_ingress_topology_switch.py** (NEW - Latest Commit)
+    - [View File](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/ef9c8b4/tests/test_a2a_ingress_topology_switch.py)
+    - Proves ingress ignores metadata["topology"] claims (6 tests)
+    - Tests runtime topology enforcement in ingress path
+
 ### Documentation Files
 
-17. **docs/M3/evidence_pack.md** (NEW)
+18. **docs/M3/evidence_pack.md** (NEW)
     - [View File](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/9198dbd/docs/M3/evidence_pack.md)
     - Milestone evidence and artifacts
     - Test mapping table
@@ -127,12 +132,14 @@
 
 ## Key Changes Summary
 
-### Blockers Fixed
+### Blockers Fixed (Latest Commit ef9c8b4)
+- ✅ **Dynamic Topology (Ingress)** - sdk_adapter.py Line 205 now reads `topology, epoch = self.switch.active()`
 - ✅ **UUID msg_id everywhere** - All ingress messages use `uuid4().hex`
 - ✅ **Chain enforcement** - External must enter via planner
 - ✅ **Star topology** - Non-planner → non-planner routes via planner
 - ✅ **SDK imports** - Correct order: a2a → python_a2a
-- ✅ **Test coverage** - 84 tests total, 78 passing
+- ✅ **Test coverage** - 101 tests total, 91 passing
+- ✅ **Metadata Ignored** - Ingress ignores metadata["topology"], uses runtime only
 
 ### Test Results
 - **10k uniqueness test**: 13,336 messages, 0 duplicates
@@ -151,17 +158,18 @@
 # Clone and checkout
 git clone https://github.com/SujeethJinesh/APEXTopologyReconfiguration.git
 cd APEXTopologyReconfiguration
-git checkout 9198dbd
+git checkout ef9c8b4
 
 # Install with extras
 pip install -e ".[dev,a2a,mcp]"
 
 # Run tests
 python3 -m pytest tests/test_msg_id_uniqueness_10k.py -v
+python3 -m pytest tests/test_a2a_ingress_topology_switch.py -v
 python3 -m pytest tests/test_a2a_star_topology.py -v
 python3 -m pytest tests/ -q  # All tests
 ```
 
 ---
-*Last Updated: 2024-08-22*
-*This document will be updated after each task completion*
+*Last Updated: 2025-08-22*
+*Latest Fix: Ingress now uses runtime topology from switch.active(), not metadata*
