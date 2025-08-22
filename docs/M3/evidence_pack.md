@@ -160,6 +160,11 @@ None. All specifications implemented as required, including:
 - Router error mapping to A2A envelopes
 - MCP traversal protection via LocalFS whitelist
 
+## Additional Evidence
+
+- **[Final Response with 10k Test Results](./final_response.md)** - Complete evidence including 13,336 unique msg_ids
+- **[Test Output Logs](./artifacts/)** - CI test artifacts (when available)
+
 ## Sign-off Checklist
 - [x] Artifacts present under `docs/M3/artifacts/`
 - [x] All tests pass (including new A2A/MCP tests)
@@ -169,3 +174,5 @@ None. All specifications implemented as required, including:
 - [x] FastMCP tools wrap existing adapters with whitelist enforcement
 - [x] Optional dependencies properly guarded
 - [x] Documentation updated in `docs/M3/`
+- [x] 10k+ msg_id uniqueness test proves zero collisions
+- [x] Star topology enforcement validated
