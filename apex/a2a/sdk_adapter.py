@@ -205,10 +205,12 @@ class A2ACompliance:
                 if recipient:
                     messages.append(
                         Message(
+                            episode_id=f"a2a-{metadata.get('episode', 'default')}",
+                            msg_id=f"msg-{params.get('id', 'auto')}",
                             sender=sender,
                             recipient=recipient,
-                            content=content,
-                            epoch=self.switch.active()[1],
+                            topo_epoch=self.switch.active()[1],
+                            payload={"content": content},
                         )
                     )
 
