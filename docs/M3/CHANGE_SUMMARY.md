@@ -2,7 +2,7 @@
 
 **Branch:** `sujinesh/M3`  
 **PR:** [#5](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/pull/5)  
-**Latest Commit:** `9198dbd4a4e6df8a2f8e5feb0ab4ecdf03398336`
+**Latest Commit:** `4268713c58a10e305d93e0c7a0d868328cefbd56`
 
 ## All Changed Files with Permalinks
 
@@ -82,13 +82,23 @@
     - Symlink escape prevention
 
 14. **tests/test_msg_id_uniqueness_10k.py** (NEW)
-    - [View File](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/9198dbd/tests/test_msg_id_uniqueness_10k.py)
+    - [View File](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4268713/tests/test_msg_id_uniqueness_10k.py)
     - 13,336 message uniqueness test
     - Zero collision proof
 
+15. **tests/test_a2a_topology_switch_runtime.py** (NEW)
+    - [View File](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4268713/tests/test_a2a_topology_switch_runtime.py)
+    - Dynamic topology switching tests (6 tests)
+    - Proves topology changes are immediately enforced
+
+16. **tests/test_a2a_flat_topology.py** (NEW)
+    - [View File](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4268713/tests/test_a2a_flat_topology.py)
+    - Flat topology enforcement tests (10 tests)
+    - Fanout limit, recipients list, FIFO order
+
 ### Documentation Files
 
-15. **docs/M3/evidence_pack.md** (NEW)
+17. **docs/M3/evidence_pack.md** (NEW)
     - [View File](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/9198dbd/docs/M3/evidence_pack.md)
     - Milestone evidence and artifacts
     - Test mapping table
