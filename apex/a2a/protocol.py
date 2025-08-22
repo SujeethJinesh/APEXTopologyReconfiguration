@@ -70,6 +70,7 @@ class A2AProtocol:
         recipient: Optional[str] = None,
         recipients: Optional[list[str]] = None,
         content: str = "",
+        force_topology: Optional[str] = None,
     ) -> dict:
         """Send a message with topology enforcement.
 
@@ -78,6 +79,7 @@ class A2AProtocol:
             recipient: Single recipient (for star/chain)
             recipients: Multiple recipients (for flat)
             content: Message content
+            force_topology: Override topology for testing (default: use switch active)
 
         Returns:
             dict: A2A-compliant envelope of sent message
@@ -85,10 +87,16 @@ class A2AProtocol:
         Raises:
             ValueError: If topology rules are violated
         """
-        # Build message(s) based on topology
+        # Get active topology from switch (dynamic!)
+        active_topology, epoch = self.switch.active()
+        
+        # Allow test override, otherwise use active topology
+        topology = force_topology if force_topology else active_topology
+        
+        # Build message(s) based on active topology
         messages = []
 
-        if self.topology == "star":
+        if topology == "star":
             # Star topology: all non-planner communicate through planner
             if sender != self.planner_id and recipient != self.planner_id:
                 # Non-planner must route through planner
@@ -98,7 +106,7 @@ class A2AProtocol:
                         msg_id=f"msg-{uuid4().hex}",
                         sender=sender,
                         recipient=self.planner_id,
-                        topo_epoch=self.switch.active()[1],
+                        topo_epoch=epoch,
                         payload={"content": content},
                     )
                 )
@@ -110,7 +118,7 @@ class A2AProtocol:
                         msg_id=f"msg-{uuid4().hex}",
                         sender=sender,
                         recipient=recipient,
-                        topo_epoch=self.switch.active()[1],
+                        topo_epoch=epoch,
                         payload={"content": content},
                     )
                 )
@@ -122,14 +130,14 @@ class A2AProtocol:
                         msg_id=f"msg-{uuid4().hex}",
                         sender=sender,
                         recipient=recipient,
-                        topo_epoch=self.switch.active()[1],
+                        topo_epoch=epoch,
                         payload={"content": content},
                     )
                 )
             else:
                 raise ValueError("Star topology requires recipient")
 
-        elif self.topology == "chain":
+        elif topology == "chain":
             # Chain topology: sequential processing with next-hop enforcement
             if not recipient:
                 raise ValueError("Chain topology requires recipient")
@@ -153,7 +161,7 @@ class A2AProtocol:
                 )
             )
 
-        elif self.topology == "flat":
+        elif topology == "flat":
             # Flat topology: limited broadcast
             if not recipients:
                 raise ValueError("Flat topology requires recipients list")
@@ -167,13 +175,13 @@ class A2AProtocol:
                         msg_id=f"msg-{uuid4().hex}",
                         sender=sender,
                         recipient=r,
-                        topo_epoch=self.switch.active()[1],
+                        topo_epoch=epoch,
                         payload={"content": content},
                     )
                 )
 
         else:
-            raise ValueError(f"Unknown topology: {self.topology}")
+            raise ValueError(f"Unknown topology: {topology}")
 
         # Route messages through Router (never bypass!)
         from apex.runtime.errors import InvalidRecipientError, QueueFullError

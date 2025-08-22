@@ -1,0 +1,123 @@
+# Claude Code Instructions for APEX Framework
+
+## Review Response Guidelines
+
+When responding to code reviews, ALWAYS provide:
+
+### 1. Commit-Pinned Permalinks
+- Use GitHub's `y` key to get permanent links to specific commits
+- Link to exact line numbers showing the fix
+- Format: `https://github.com/USER/REPO/blob/COMMIT_SHA/path/to/file.py#L123-L456`
+
+### 2. Evidence Structure
+Create a `docs/M{N}/FINAL_EVIDENCE.md` file containing:
+
+```markdown
+# Final Evidence for Milestone M{N}
+
+## Commit Information
+- PR HEAD SHA: [full 40-char SHA]
+- Branch: [branch name]
+- PR: #[number]
+
+## Code Changes with Line-Pinned Permalinks
+
+### Dynamic Topology Fix
+- **File:** apex/a2a/protocol.py
+- **Lines 91-92:** [permalink] - Reads active topology from switch
+- **Lines 99-184:** [permalink] - Uses dynamic topology for enforcement
+
+### UUID msg_id Generation (Ingress)
+- **File:** apex/a2a/sdk_adapter.py
+- **Line 225:** [permalink] - Star topology UUID
+- **Line 239:** [permalink] - Chain topology UUID
+- **Line 260:** [permalink] - Chain external UUID
+- **Line 278:** [permalink] - Chain internal UUID
+- **Line 295:** [permalink] - Flat topology UUID per recipient
+
+### Test Coverage
+- **test_a2a_topology_switch_runtime.py:** [permalink]
+- **test_a2a_flat_topology.py:** [permalink]
+- **test_a2a_star_topology.py:** [permalink]
+- **test_msg_id_uniqueness_10k.py:** [permalink]
+
+## Test Results
+[Exact pytest output with counts]
+
+## Spec Compliance Map
+| Spec Requirement | Code Implementation | Test Coverage |
+|-----------------|---------------------|---------------|
+| Dynamic topology | protocol.py#L91-92 | test_topology_switch#L42-58 |
+| UUID msg_id | sdk_adapter.py#L225 | test_10k_uniqueness#L38-72 |
+| Router non-bypass | protocol.py#L184 | All send tests |
+| Chain enforcement | sdk_adapter.py#L256-264 | test_chain_enforcement#L* |
+```
+
+### 3. Update Tracking
+After EVERY task completion:
+1. Update `docs/M{N}/CHANGE_SUMMARY.md` with new files/changes
+2. Include permalinks to all modified files
+3. Update test counts and results
+4. Commit with clear message describing what was fixed
+
+### 4. Response Format
+When reviewer requests changes:
+
+```markdown
+## Addressing Review Feedback
+
+### 1. [Blocker Name] - FIXED ✅
+**Issue:** [What reviewer found]
+**Fix:** [What you changed]
+**Evidence:** 
+- Line [X]: [permalink showing fix]
+- Test: [permalink to test proving fix]
+
+### 2. [Next Blocker] - FIXED ✅
+...
+```
+
+## Key Invariants to Maintain
+
+1. **Dynamic Topology:** Always read from `switch.active()`, never cache
+2. **UUID msg_id:** Every Message must use `uuid4().hex`
+3. **Router Sovereignty:** All messages go through `router.route()`
+4. **Epoch Consistency:** Use the epoch from same `switch.active()` call
+5. **Test Coverage:** Every claim needs a test with output
+
+## Common Review Issues & Solutions
+
+### "Can't see file in PR"
+- Provide full file content in response
+- Use commit-pinned permalinks
+- Create FINAL_EVIDENCE.md with all content
+
+### "Dynamic switching not respected"
+- Check `switch.active()` is called in send()
+- Topology and epoch from same call
+- No caching of topology in init
+
+### "UUID not everywhere"
+- Search for all `Message(` constructions
+- Verify every one uses `uuid4().hex`
+- Special attention to ingress paths
+
+### "Tests not in PR"
+- Ensure all test files are committed
+- Run tests and include output
+- Provide permalinks to test files
+
+## File Organization
+
+```
+docs/
+  M{N}/
+    evidence_pack.md      # Milestone evidence
+    CHANGE_SUMMARY.md     # All changes with permalinks  
+    FINAL_EVIDENCE.md     # Response to review
+    final_response.md     # Additional evidence
+    artifacts/            # Test outputs, logs
+```
+
+---
+*This file guides Claude Code in responding to reviews effectively*
