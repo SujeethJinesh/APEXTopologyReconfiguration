@@ -1,5 +1,7 @@
 # M3 Evidence Pack - Final Submission
 
+## Milestone: M3 - A2A Protocol & MCP Interop
+
 ## Summary
 This PR addresses all M3 blockers with complete runtime topology enforcement, single epoch capture, and comprehensive test coverage.
 

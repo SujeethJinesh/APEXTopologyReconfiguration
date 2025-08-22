@@ -79,9 +79,10 @@ class TestA2AEnvelopeAndRouting:
         assert msg.recipient == "planner"  # Forced through planner
 
     @pytest.mark.asyncio
-    @pytest.mark.asyncio
     async def test_flat_topology_fanout_limit(self, router, switch):
         """Test flat topology enforces fanout limit."""
+        # Set switch to flat topology for this test
+        switch.active.return_value = ("flat", 1)
         protocol = A2AProtocol(router, switch, topology="flat", fanout_limit=2)
 
         # Try to exceed fanout
@@ -178,6 +179,8 @@ class TestA2ACompliance:
     @pytest.mark.asyncio
     async def test_from_a2a_request_flat_topology(self, router, switch):
         """Test A2A request with flat topology (broadcast)."""
+        # Set switch to flat topology for this test
+        switch.active.return_value = ("flat", 1)
         compliance = A2ACompliance(
             router, switch, roles=["planner", "coder", "runner"], fanout_limit=3
         )

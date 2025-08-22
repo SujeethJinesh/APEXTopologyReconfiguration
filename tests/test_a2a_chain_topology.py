@@ -168,6 +168,8 @@ class TestErrorEnvelopes:
     @pytest.mark.asyncio
     async def test_invalid_recipient_returns_error_envelope(self, router, switch):
         """Test InvalidRecipientError returns A2A error envelope."""
+        # Set switch to star topology for this test
+        switch.active.return_value = ("star", 1)
         protocol = A2AProtocol(router, switch, topology="star")
 
         # Make router raise InvalidRecipientError
@@ -184,6 +186,8 @@ class TestErrorEnvelopes:
     @pytest.mark.asyncio
     async def test_queue_full_returns_error_envelope(self, router, switch):
         """Test QueueFullError returns A2A error envelope."""
+        # Set switch to star topology for this test
+        switch.active.return_value = ("star", 1)
         protocol = A2AProtocol(router, switch, topology="star")
 
         # Make router raise QueueFullError
@@ -204,6 +208,8 @@ class TestFlatTopologyFanout:
     @pytest.mark.asyncio
     async def test_fanout_at_limit_succeeds(self, router, switch):
         """Test fanout exactly at limit works."""
+        # Set switch to flat topology for this test
+        switch.active.return_value = ("flat", 1)
         protocol = A2AProtocol(router, switch, topology="flat", fanout_limit=2)
 
         result = await protocol.send(
@@ -217,6 +223,8 @@ class TestFlatTopologyFanout:
     @pytest.mark.asyncio
     async def test_fanout_exceeds_limit_raises(self, router, switch):
         """Test fanout over limit raises with exact message."""
+        # Set switch to flat topology for this test
+        switch.active.return_value = ("flat", 1)
         protocol = A2AProtocol(router, switch, topology="flat", fanout_limit=2)
 
         with pytest.raises(ValueError) as exc_info:
