@@ -23,6 +23,9 @@ class Router:
       in which case they go to Q_next (epoch N+1).
     - Dequeue only serves the active epoch; N+1 is not served until COMMIT.
     - On ABORT, Q_next is appended behind Q_active (per recipient), preserving FIFO.
+    
+    Note: Epoch stamping occurs at ingress in Router, not at agent message construction.
+    Router is the authoritative source for epoch assignment during route().
     """
 
     def __init__(

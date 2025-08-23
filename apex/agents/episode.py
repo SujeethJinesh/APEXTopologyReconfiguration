@@ -31,11 +31,8 @@ class EpisodeRunner:
         self.agents = agents
         self.router = router
         self.switch = switch
-        self.episode_id = str(uuid4())
-        
-        # Set the same episode ID for all agents
-        for agent in self.agents.values():
-            agent.episode_id = self.episode_id
+        # Get episode_id from the first agent (all should have same)
+        self.episode_id = next(iter(agents.values())).episode_id if agents else str(uuid4())
     
     async def run(self, topology: str, steps: int = 50) -> dict:
         """

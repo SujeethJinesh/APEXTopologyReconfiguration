@@ -22,6 +22,7 @@ class BaseAgent:
         switch: ISwitchEngine,
         fs: FS,
         test: Test,
+        episode_id: str,  # Required parameter for unified episode tracking
         llm: Optional[LLM] = None,
     ) -> None:
         self.agent_id = agent_id
@@ -29,8 +30,8 @@ class BaseAgent:
         self.switch = switch
         self.fs = fs
         self.test = test
+        self.episode_id = episode_id  # Use provided episode_id, not generated
         self.llm = llm
-        self.episode_id = str(uuid4())
 
     async def handle(self, msg: Message) -> list[Message]:
         """
@@ -46,6 +47,10 @@ class BaseAgent:
         Utility to create a new message with proper epoch stamping.
         
         Uses switch.active()[1] since ingress_epoch() is not available.
+        
+        Note: Router is authoritative for epoch stamping at ingress.
+        The epoch set here is advisory only and will be overwritten
+        by Router during route() to enforce epoch gating invariants.
         """
         topology, epoch = self.switch.active()
         return Message(

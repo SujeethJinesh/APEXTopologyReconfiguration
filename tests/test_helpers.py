@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import pytest
-from stubs import StubFS, StubLLM, StubTest
 
 from apex.agents.base import BaseAgent
 from apex.agents.roles import (
@@ -15,9 +14,11 @@ from apex.agents.roles import (
     RunnerAgent,
     SummarizerAgent,
 )
-from apex.runtime.message import AgentID
+from apex.runtime.message import AgentID, Message
 from apex.runtime.router import Router
 from apex.runtime.switch import SwitchEngine
+
+from stubs import StubFS, StubLLM, StubTest
 
 
 @pytest.fixture
@@ -68,8 +69,9 @@ def create_agents(
     fs: StubFS,
     test: StubTest,
     llm: StubLLM,
+    episode_id: str,  # Add episode_id parameter
 ) -> Dict[AgentID, BaseAgent]:
-    """Create all role agents."""
+    """Create all role agents with unified episode_id."""
     agents = {}
     
     # Create Planner
@@ -79,6 +81,7 @@ def create_agents(
         switch=switch,
         fs=fs,
         test=test,
+        episode_id=episode_id,  # Pass shared episode_id
         llm=llm,
     )
     
@@ -89,6 +92,7 @@ def create_agents(
         switch=switch,
         fs=fs,
         test=test,
+        episode_id=episode_id,  # Pass shared episode_id
         llm=llm,
     )
     
@@ -99,6 +103,7 @@ def create_agents(
         switch=switch,
         fs=fs,
         test=test,
+        episode_id=episode_id,  # Pass shared episode_id
         llm=llm,
     )
     
@@ -109,6 +114,7 @@ def create_agents(
         switch=switch,
         fs=fs,
         test=test,
+        episode_id=episode_id,  # Pass shared episode_id
         llm=llm,
     )
     
@@ -119,6 +125,7 @@ def create_agents(
         switch=switch,
         fs=fs,
         test=test,
+        episode_id=episode_id,  # Pass shared episode_id
         llm=llm,
     )
     
@@ -148,3 +155,69 @@ class TraceCollector:
         with open(path, "w") as f:
             for event in self.events:
                 f.write(json.dumps(event) + "\n")
+
+
+class TracingRouter(Router):
+    """Router wrapper that traces all events with clear success/rejection status."""
+    
+    def __init__(self, *args, trace_collector: TraceCollector, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.trace = trace_collector
+    
+    async def route(self, msg: Message) -> bool:
+        """Route and trace the message with success/rejection status."""
+        topology, epoch = self._switch_engine.active() if self._switch_engine else ("unknown", 0)
+        
+        # Log attempt
+        self.trace.add_event(
+            "enqueue_attempt",
+            epoch=epoch,
+            topology=topology,
+            from_agent=str(msg.sender),
+            to_agent=str(msg.recipient),
+            msg_id=msg.msg_id,
+        )
+        
+        # Try to route
+        try:
+            result = await super().route(msg)
+            # Log success
+            self.trace.add_event(
+                "enqueue_success",
+                epoch=epoch,
+                topology=topology,
+                from_agent=str(msg.sender),
+                to_agent=str(msg.recipient),
+                msg_id=msg.msg_id,
+            )
+            return result
+        except Exception as e:
+            # Log rejection
+            self.trace.add_event(
+                "enqueue_rejected",
+                epoch=epoch,
+                topology=topology,
+                from_agent=str(msg.sender),
+                to_agent=str(msg.recipient),
+                msg_id=msg.msg_id,
+                reason=str(e),
+            )
+            raise
+    
+    async def dequeue(self, agent_id: AgentID) -> Optional[Message]:
+        """Dequeue and trace if a message is returned."""
+        msg = await super().dequeue(agent_id)
+        if msg:
+            topology, epoch = (
+                self._switch_engine.active() if self._switch_engine else ("unknown", 0)
+            )
+            self.trace.add_event(
+                "dequeue",
+                epoch=epoch,
+                topology=topology,
+                agent=str(agent_id),
+                msg_id=msg.msg_id,
+                from_agent=str(msg.sender),
+                to_agent=str(msg.recipient),
+            )
+        return msg

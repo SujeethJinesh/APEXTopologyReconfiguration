@@ -6,7 +6,7 @@ from typing import List, Optional
 from uuid import uuid4
 
 import pytest
-from test_helpers import TraceCollector, create_agents
+from test_helpers import TraceCollector, TracingRouter, create_agents, toy_repo, stub_fs, stub_test, stub_llm
 
 from apex.agents.base import BaseAgent
 from apex.agents.episode import EpisodeRunner
@@ -16,43 +16,6 @@ from apex.runtime.switch import SwitchEngine
 from apex.runtime.topology_guard import TopologyGuard, TopologyViolationError
 
 
-class TracingRouter(Router):
-    """Router wrapper that traces all events."""
-    
-    def __init__(self, *args, trace_collector: TraceCollector, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.trace = trace_collector
-    
-    async def route(self, msg: Message) -> bool:
-        """Route and trace the message."""
-        topology, epoch = self._switch_engine.active() if self._switch_engine else ("unknown", 0)
-        self.trace.add_event(
-            "enqueue",
-            epoch=epoch,
-            topology=topology,
-            from_agent=str(msg.sender),
-            to_agent=str(msg.recipient),
-            msg_id=msg.msg_id,
-        )
-        return await super().route(msg)
-    
-    async def dequeue(self, agent_id: AgentID) -> Optional[Message]:
-        """Dequeue and trace if a message is returned."""
-        msg = await super().dequeue(agent_id)
-        if msg:
-            topology, epoch = (
-                self._switch_engine.active() if self._switch_engine else ("unknown", 0)
-            )
-            self.trace.add_event(
-                "dequeue",
-                epoch=epoch,
-                topology=topology,
-                agent=str(agent_id),
-                msg_id=msg.msg_id,
-                from_agent=str(msg.sender),
-                to_agent=str(msg.recipient),
-            )
-        return msg
 
 
 class TracingEpisodeRunner(EpisodeRunner):
@@ -175,8 +138,9 @@ async def test_flat_topology_end_to_end(toy_repo, stub_fs, stub_test, stub_llm):
     # Set topology to flat
     await switch.switch_to("flat")
     
-    # Create agents
-    agents = create_agents(router, switch, stub_fs, stub_test, stub_llm)
+    # Create agents with unified episode_id
+    episode_id = str(uuid4())
+    agents = create_agents(router, switch, stub_fs, stub_test, stub_llm, episode_id)
     
     # Create and run episode
     runner = TracingEpisodeRunner(
@@ -222,6 +186,7 @@ async def test_flat_topology_end_to_end(toy_repo, stub_fs, stub_test, stub_llm):
         switch=switch,
         fs=stub_fs,
         test=stub_test,
+        episode_id=episode_id,  # Add required episode_id
         llm=stub_llm,
     )
     

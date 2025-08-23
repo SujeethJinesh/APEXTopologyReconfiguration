@@ -1,10 +1,15 @@
-{"step": 1, "event": "enqueue", "epoch": 1, "topology": "star", "from_agent": "system", "to_agent": "planner", "msg_id": "e8b6e943b2a9418da139385ff0141339"}
-{"step": 2, "event": "enqueue", "epoch": 1, "topology": "star", "from_agent": "coder", "to_agent": "planner", "msg_id": "f7b84f7aa8954655a2d17267cac80911"}
-{"step": 3, "event": "enqueue", "epoch": 1, "topology": "star", "from_agent": "coder", "to_agent": "planner", "msg_id": "0b1e9f5fed614c9fa79034dd091b3917"}
-{"step": 4, "event": "enqueue", "epoch": 1, "topology": "star", "from_agent": "coder", "to_agent": "planner", "msg_id": "39b8696aac8241b087d9b283cb6d1889"}
-{"step": 5, "event": "pre_switch", "topology": "star", "epoch": 1, "queued_messages": 4}
-{"step": 6, "event": "switch_prepare", "from_topology": "star", "to_topology": "chain"}
-{"step": 7, "event": "enqueue", "epoch": 1, "topology": "star", "from_agent": "planner", "to_agent": "coder", "msg_id": "7360834746804258b86a999ee0c2411c"}
-{"step": 8, "event": "dequeue", "epoch": 1, "topology": "star", "agent": "planner", "msg_id": "e8b6e943b2a9418da139385ff0141339", "from_agent": "system", "to_agent": "planner"}
-{"step": 9, "event": "dequeue_during_switch", "agent": "planner", "msg_epoch": 1}
-{"step": 10, "event": "switch_abort", "topology": "star", "epoch": 1}
+{"step": 1, "event": "enqueue_attempt", "epoch": 1, "topology": "star", "from_agent": "system", "to_agent": "planner", "msg_id": "ab2c509140854f9bbec29551f7af02a2"}
+{"step": 2, "event": "enqueue_success", "epoch": 1, "topology": "star", "from_agent": "system", "to_agent": "planner", "msg_id": "ab2c509140854f9bbec29551f7af02a2"}
+{"step": 3, "event": "enqueue_attempt", "epoch": 1, "topology": "star", "from_agent": "coder", "to_agent": "planner", "msg_id": "9eca5f6a385a440a883e69d4dafe41ec"}
+{"step": 4, "event": "enqueue_success", "epoch": 1, "topology": "star", "from_agent": "coder", "to_agent": "planner", "msg_id": "9eca5f6a385a440a883e69d4dafe41ec"}
+{"step": 5, "event": "enqueue_attempt", "epoch": 1, "topology": "star", "from_agent": "coder", "to_agent": "planner", "msg_id": "fcaaa56317f14e86b13518e31047201d"}
+{"step": 6, "event": "enqueue_success", "epoch": 1, "topology": "star", "from_agent": "coder", "to_agent": "planner", "msg_id": "fcaaa56317f14e86b13518e31047201d"}
+{"step": 7, "event": "enqueue_attempt", "epoch": 1, "topology": "star", "from_agent": "coder", "to_agent": "planner", "msg_id": "d4c445314a2744a5995f184b03b67eea"}
+{"step": 8, "event": "enqueue_success", "epoch": 1, "topology": "star", "from_agent": "coder", "to_agent": "planner", "msg_id": "d4c445314a2744a5995f184b03b67eea"}
+{"step": 9, "event": "pre_switch", "topology": "star", "epoch": 1, "queued_messages": 4}
+{"step": 10, "event": "switch_prepare", "from_topology": "star", "to_topology": "chain"}
+{"step": 11, "event": "enqueue_attempt", "epoch": 1, "topology": "star", "from_agent": "planner", "to_agent": "coder", "msg_id": "31375ed4920347f1b6f9d0efcd129d30"}
+{"step": 12, "event": "enqueue_success", "epoch": 1, "topology": "star", "from_agent": "planner", "to_agent": "coder", "msg_id": "31375ed4920347f1b6f9d0efcd129d30"}
+{"step": 13, "event": "dequeue", "epoch": 1, "topology": "star", "agent": "planner", "msg_id": "ab2c509140854f9bbec29551f7af02a2", "from_agent": "system", "to_agent": "planner"}
+{"step": 14, "event": "dequeue_during_switch", "agent": "planner", "msg_epoch": 1}
+{"step": 15, "event": "switch_abort", "topology": "star", "epoch": 1}

@@ -17,6 +17,11 @@ class TopologyGuard:
             Planner may send to any single recipient.
     - Chain: Strict pipeline order.
     - Flat: Direct peer-to-peer allowed with fanout limit.
+            
+    Note on Flat Fanout (MVP):
+    - Bounded fanout (≤2 recipients) is enforced ONLY for broadcast messages
+    - Subset multicast is not implemented; use repeated unicast instead
+    - Each unicast counts as a separate message for accounting
     """
     
     # Fixed role IDs
