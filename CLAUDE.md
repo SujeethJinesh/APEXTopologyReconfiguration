@@ -63,6 +63,7 @@ After EVERY task completion:
 6. Always commit after completing each milestone/feature/fix
 
 ### 4. Response Format
+ALWAYS include permalinks to relevant files in responses.
 When reviewer requests changes:
 
 ```markdown
@@ -87,6 +88,7 @@ When reviewer requests changes:
 4. **Epoch Consistency:** Use the epoch from same `switch.active()` call
 5. **Test Coverage:** Every claim needs a test with output
 6. **Version Control:** Commit and push after EVERY completed task/milestone
+7. **Permalinks:** Always include GitHub permalinks to relevant files in responses
 
 ## Common Review Issues & Solutions
 
@@ -120,6 +122,19 @@ docs/
     FINAL_EVIDENCE.md     # Response to review
     final_response.md     # Additional evidence
     artifacts/            # Test outputs, logs
+```
+
+## Response Best Practices
+
+When completing any task or responding to requests:
+1. **Include permalinks** to all relevant files using format: `file_path:line_number`
+2. **Provide GitHub permalinks** for code changes after pushing
+3. **Reference specific line numbers** when discussing implementations
+4. **Link to test files** that prove functionality
+
+Example permalink format after push:
+```
+https://github.com/USER/REPO/blob/COMMIT_SHA/path/to/file.py#L123-L456
 ```
 
 ---
