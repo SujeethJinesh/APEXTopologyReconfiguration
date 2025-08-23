@@ -53,12 +53,14 @@ Create a `docs/M{N}/FINAL_EVIDENCE.md` file containing:
 | Chain enforcement | sdk_adapter.py#L256-264 | test_chain_enforcement#L* |
 ```
 
-### 3. Update Tracking
+### 3. Update Tracking & Version Control
 After EVERY task completion:
 1. Update `docs/M{N}/CHANGE_SUMMARY.md` with new files/changes
 2. Include permalinks to all modified files
 3. Update test counts and results
-4. Commit with clear message describing what was fixed
+4. **COMMIT AND PUSH CHANGES** with clear message describing what was fixed
+5. Use `git add -A`, `git commit -m "descriptive message"`, `git push origin branch-name`
+6. Always commit after completing each milestone/feature/fix
 
 ### 4. Response Format
 When reviewer requests changes:
@@ -84,6 +86,7 @@ When reviewer requests changes:
 3. **Router Sovereignty:** All messages go through `router.route()`
 4. **Epoch Consistency:** Use the epoch from same `switch.active()` call
 5. **Test Coverage:** Every claim needs a test with output
+6. **Version Control:** Commit and push after EVERY completed task/milestone
 
 ## Common Review Issues & Solutions
 
