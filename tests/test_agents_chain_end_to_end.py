@@ -1,21 +1,18 @@
 from __future__ import annotations
 
-import asyncio
-import json
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Optional
 from uuid import uuid4
 
 import pytest
+from test_helpers import TraceCollector, create_agents
 
 from apex.agents.episode import EpisodeRunner
 from apex.runtime.message import AgentID, Epoch, Message
 from apex.runtime.router import Router
 from apex.runtime.switch import SwitchEngine
 from apex.runtime.topology_guard import TopologyGuard, TopologyViolationError
-
-from test_helpers import TraceCollector, create_agents, toy_repo, stub_fs, stub_test, stub_llm
 
 
 class TracingRouter(Router):
@@ -42,7 +39,9 @@ class TracingRouter(Router):
         """Dequeue and trace if a message is returned."""
         msg = await super().dequeue(agent_id)
         if msg:
-            topology, epoch = self._switch_engine.active() if self._switch_engine else ("unknown", 0)
+            topology, epoch = (
+                self._switch_engine.active() if self._switch_engine else ("unknown", 0)
+            )
             self.trace.add_event(
                 "dequeue",
                 epoch=epoch,

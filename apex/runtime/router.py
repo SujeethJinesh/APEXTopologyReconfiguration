@@ -9,7 +9,7 @@ from apex.config.defaults import MAX_ATTEMPTS, MESSAGE_TTL_S, QUEUE_CAP_PER_AGEN
 
 from .errors import InvalidRecipientError, QueueFullError
 from .message import AgentID, Epoch, Message
-from .topology_guard import TopologyGuard, TopologyViolationError
+from .topology_guard import TopologyGuard
 
 if TYPE_CHECKING:
     from .switch_api import ISwitchEngine

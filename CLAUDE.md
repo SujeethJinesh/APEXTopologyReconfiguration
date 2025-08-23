@@ -58,9 +58,15 @@ After EVERY task completion:
 1. Update `docs/M{N}/CHANGE_SUMMARY.md` with new files/changes
 2. Include permalinks to all modified files
 3. Update test counts and results
-4. **COMMIT AND PUSH CHANGES** with clear message describing what was fixed
-5. Use `git add -A`, `git commit -m "descriptive message"`, `git push origin branch-name`
-6. Always commit after completing each milestone/feature/fix
+4. **RUN LINTING** - Must pass before committing: `make lint` or `ruff check` + `black`
+5. **COMMIT AND PUSH CHANGES** with clear message describing what was fixed
+6. Use `git add -A`, `git commit -m "descriptive message"`, `git push origin branch-name`
+7. **UPDATE THE PR** with:
+   - Summary of changes
+   - Permalinks to latest commit (use HEAD SHA)
+   - Test results
+   - Evidence of lint passing
+8. Always commit after completing each milestone/feature/fix
 
 ### 4. Response Format
 ALWAYS include permalinks to relevant files in responses.
@@ -87,8 +93,10 @@ When reviewer requests changes:
 3. **Router Sovereignty:** All messages go through `router.route()`
 4. **Epoch Consistency:** Use the epoch from same `switch.active()` call
 5. **Test Coverage:** Every claim needs a test with output
-6. **Version Control:** Commit and push after EVERY completed task/milestone
-7. **Permalinks:** Always include GitHub permalinks to relevant files in responses
+6. **Linting:** Code must pass lint checks before commit
+7. **Version Control:** Commit and push after EVERY completed task/milestone
+8. **Permalinks:** Always include GitHub permalinks to relevant files in responses
+9. **PR Updates:** Update PR description with latest changes and permalinks
 
 ## Common Review Issues & Solutions
 
@@ -129,12 +137,32 @@ docs/
 When completing any task or responding to requests:
 1. **Include permalinks** to all relevant files using format: `file_path:line_number`
 2. **Provide GitHub permalinks** for code changes after pushing
-3. **Reference specific line numbers** when discussing implementations
-4. **Link to test files** that prove functionality
+3. **Use LATEST commit SHA** for permalinks (get with `git rev-parse HEAD`)
+4. **Reference specific line numbers** when discussing implementations
+5. **Link to test files** that prove functionality
+6. **Update PR description** after every push with:
+   - Latest permalinks
+   - Summary of what was implemented
+   - Test results
+   - Lint status
 
 Example permalink format after push:
 ```
 https://github.com/USER/REPO/blob/COMMIT_SHA/path/to/file.py#L123-L456
+```
+
+### PR Update Template
+```markdown
+## Latest Changes (Commit: SHA)
+
+### Implementation
+- [Component]: [permalink]
+- Tests: [permalink]
+
+### Verification
+- Tests: ✅ X passing
+- Lint: ✅ Passing
+- Artifacts: [link]
 ```
 
 ---
