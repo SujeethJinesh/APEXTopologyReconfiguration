@@ -28,56 +28,102 @@ def _resolve(self, rel_path: str) -> Path:
 - Line 75: `abspath = self._resolve(path)` in patch_file()
 - Line 92: `subroot = self._resolve(root)` in search_files()
 
-## 2. Atomic Write Operations
+## 2. Atomic Write Operations (ACTUALLY IMPLEMENTED)
 
 ### File: apex/integrations/mcp/fs_local.py
-### Lines: 42-49
+### Lines: 43-76
 
 ```python
 async def write_file(self, path: str, data: bytes) -> None:
+    """Write file atomically using temp file + atomic rename."""
     abspath = self._resolve(path)
-    
+
     def _write() -> None:
+        # Ensure parent directory exists
         abspath.parent.mkdir(parents=True, exist_ok=True)
-        abspath.write_bytes(data)
-    
+        
+        # Create temp file in same directory for atomic rename
+        fd, tmppath = tempfile.mkstemp(
+            dir=abspath.parent,
+            prefix=f".{abspath.name}.",
+            suffix=".tmp"
+        )
+        
+        try:
+            # Write data to temp file
+            with os.fdopen(fd, "wb") as f:
+                f.write(data)
+                f.flush()
+                os.fsync(f.fileno())  # Ensure data is on disk
+            
+            # Atomic rename (replace target atomically)
+            os.replace(tmppath, str(abspath))  # os.replace is atomic on POSIX
+        except Exception:
+            # Rollback: clean up temp file on any failure
+            if os.path.exists(tmppath):
+                try:
+                    os.unlink(tmppath)
+                except OSError:
+                    pass  # Best effort cleanup
+            raise  # Re-raise original exception
+
     await asyncio.to_thread(_write)
 ```
 
-**Atomicity via Python's write_bytes():**
-- Python's `Path.write_bytes()` is atomic on POSIX systems
-- Creates temp file, writes data, then renames
-- Parent directory creation is idempotent (exist_ok=True)
+**Actual Atomicity Implementation:**
+- Uses `tempfile.mkstemp()` to create temp file in same directory
+- Writes data to temp file with `fsync()` to ensure durability
+- Uses `os.replace()` for atomic rename (POSIX guarantee)
+- Rollback on failure: cleans up temp file if rename fails
+- No partial writes possible - either complete success or original unchanged
 
-### Enhanced Atomic Write Pattern (if needed):
+### Atomic Patch Operations (ALSO IMPLEMENTED)
+
+### File: apex/integrations/mcp/fs_local.py  
+### Lines: 104-138
 
 ```python
-import tempfile
-import os
-
-async def atomic_write(self, path: str, data: bytes) -> None:
-    abspath = self._resolve(path)
+def _patch() -> None:
+    # Read original content
+    text = abspath.read_text(encoding="utf-8")
+    if old_sub not in text:
+        raise ValueError("old substring not found in file")
     
-    # Write to temp file in same directory (for atomic rename)
-    temp_fd, temp_path = tempfile.mkstemp(
+    # Apply patch to create new content
+    new_text = text.replace(old_sub, new_sub, 1)
+    
+    # Write atomically using temp file
+    fd, tmppath = tempfile.mkstemp(
         dir=abspath.parent,
         prefix=f".{abspath.name}.",
-        suffix=".tmp"
+        suffix=".patch.tmp"
     )
     
     try:
-        # Write data to temp file
-        os.write(temp_fd, data)
-        os.fsync(temp_fd)  # Ensure data is on disk
+        # Write patched content to temp file
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(new_text)
+            f.flush()
+            os.fsync(f.fileno())  # Ensure data is on disk
         
-        # Atomic rename (POSIX guarantee)
-        os.rename(temp_path, abspath)
-    finally:
-        os.close(temp_fd)
-        # Clean up temp file if rename failed
-        if os.path.exists(temp_path):
-            os.unlink(temp_path)
+        # Atomic rename (replace target atomically)
+        os.replace(tmppath, str(abspath))
+    except Exception:
+        # Rollback: clean up temp file on any failure
+        if os.path.exists(tmppath):
+            try:
+                os.unlink(tmppath)
+            except OSError:
+                pass  # Best effort cleanup
+        raise  # Re-raise original exception
 ```
+
+**Patch Atomicity:**
+- Reads original content first
+- Creates patched version in memory
+- Writes to temp file with `.patch.tmp` suffix
+- Atomic replace ensures no partial patches
+- Rollback on any failure
 
 ## 3. Symlink Traversal Protection
 

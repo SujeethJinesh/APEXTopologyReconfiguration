@@ -1,0 +1,4 @@
+{"timestamp": "2025-08-23T02:41:28.045769Z", "operation": "atomic_write_start", "file": "atomic_test.txt", "action": "create_temp_file"}
+{"timestamp": "2025-08-23T02:41:28.049064Z", "operation": "temp_file_created", "temp_path": ".atomic_test.txt.5o6g4gzy.tmp", "fd": 6}
+{"timestamp": "2025-08-23T02:41:28.049250Z", "operation": "atomic_rename", "source": ".atomic_test.txt.5o6g4gzy.tmp", "target": "atomic_test.txt", "action": "os.replace"}
+{"timestamp": "2025-08-23T02:41:28.049666Z", "operation": "atomic_write_complete", "file": "atomic_test.txt", "result": "success"}

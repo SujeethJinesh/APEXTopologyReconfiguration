@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 import re
+import tempfile
 from pathlib import Path
 from typing import List
 
@@ -40,11 +41,37 @@ class LocalFS(FS):
         return await asyncio.to_thread(_read)
 
     async def write_file(self, path: str, data: bytes) -> None:
+        """Write file atomically using temp file + atomic rename."""
         abspath = self._resolve(path)
 
         def _write() -> None:
+            # Ensure parent directory exists
             abspath.parent.mkdir(parents=True, exist_ok=True)
-            abspath.write_bytes(data)
+            
+            # Create temp file in same directory for atomic rename
+            fd, tmppath = tempfile.mkstemp(
+                dir=abspath.parent,
+                prefix=f".{abspath.name}.",
+                suffix=".tmp"
+            )
+            
+            try:
+                # Write data to temp file
+                with os.fdopen(fd, "wb") as f:
+                    f.write(data)
+                    f.flush()
+                    os.fsync(f.fileno())  # Ensure data is on disk
+                
+                # Atomic rename (replace target atomically)
+                os.replace(tmppath, str(abspath))  # os.replace is atomic on POSIX
+            except Exception:
+                # Rollback: clean up temp file on any failure
+                if os.path.exists(tmppath):
+                    try:
+                        os.unlink(tmppath)
+                    except OSError:
+                        pass  # Best effort cleanup
+                raise  # Re-raise original exception
 
         await asyncio.to_thread(_write)
 
@@ -75,11 +102,38 @@ class LocalFS(FS):
         abspath = self._resolve(path)
 
         def _patch() -> None:
+            # Read original content
             text = abspath.read_text(encoding="utf-8")
             if old_sub not in text:
                 raise ValueError("old substring not found in file")
-            text = text.replace(old_sub, new_sub, 1)
-            abspath.write_text(text, encoding="utf-8")
+            
+            # Apply patch to create new content
+            new_text = text.replace(old_sub, new_sub, 1)
+            
+            # Write atomically using temp file
+            fd, tmppath = tempfile.mkstemp(
+                dir=abspath.parent,
+                prefix=f".{abspath.name}.",
+                suffix=".patch.tmp"
+            )
+            
+            try:
+                # Write patched content to temp file
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    f.write(new_text)
+                    f.flush()
+                    os.fsync(f.fileno())  # Ensure data is on disk
+                
+                # Atomic rename (replace target atomically)
+                os.replace(tmppath, str(abspath))
+            except Exception:
+                # Rollback: clean up temp file on any failure
+                if os.path.exists(tmppath):
+                    try:
+                        os.unlink(tmppath)
+                    except OSError:
+                        pass  # Best effort cleanup
+                raise  # Re-raise original exception
 
         await asyncio.to_thread(_patch)
 
