@@ -169,9 +169,9 @@ def test_parent_directory_escape_denied():
 - ✅ No symlink following during search
 
 **Atomic Operations:**
-- ✅ Python's write_bytes() provides basic atomicity
-- ✅ Parent directory creation is idempotent
-- ✅ Pattern for enhanced atomicity with tempfile available
+- ✅ Tempfile in same directory + fsync + os.replace (atomic replace on POSIX) + rollback cleanup
+- ✅ Parent directory creation is idempotent (exist_ok=True)
+- ✅ Full rollback on any failure - no partial writes possible
 
 **Security Measures:**
 - ✅ Path normalization via resolve()
