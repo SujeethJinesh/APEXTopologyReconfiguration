@@ -32,10 +32,7 @@ def switch():
 def compliance(router, switch):
     """Create A2A compliance instance."""
     return A2ACompliance(
-        router, 
-        switch, 
-        roles=["planner", "coder", "runner", "critic"],
-        planner_id="planner"
+        router, switch, roles=["planner", "coder", "runner", "critic"], planner_id="planner"
     )
 
 
@@ -47,7 +44,7 @@ class TestIngressTopologyEnforcement:
         """Test ingress uses runtime topology, not metadata["topology"]."""
         # Runtime is in STAR topology
         assert switch.active() == ("star", 1)
-        
+
         # External request claims to be in CHAIN topology (lying!)
         request = {
             "method": "send",
@@ -57,14 +54,14 @@ class TestIngressTopologyEnforcement:
                 "content": "test message",
                 "metadata": {
                     "topology": "chain",  # Claims chain, but runtime is star!
-                    "episode": "test-ep"
-                }
-            }
+                    "episode": "test-ep",
+                },
+            },
         }
-        
+
         # Convert to internal messages
         messages = compliance.from_a2a_request(request)
-        
+
         # Star topology enforced: non-planner to non-planner goes through planner
         assert len(messages) == 1
         msg = messages[0]
@@ -78,7 +75,7 @@ class TestIngressTopologyEnforcement:
         # Start in CHAIN topology
         switch._topology = "chain"
         switch._epoch = 2
-        
+
         # Request claims STAR topology (wrong!)
         request = {
             "method": "send",
@@ -88,15 +85,15 @@ class TestIngressTopologyEnforcement:
                 "content": "test",
                 "metadata": {
                     "topology": "star",  # Claims star, but runtime is chain!
-                    "epoch": 99  # Also wrong epoch
-                }
-            }
+                    "epoch": 99,  # Also wrong epoch
+                },
+            },
         }
-        
+
         # Should enforce CHAIN rules, not star
         with pytest.raises(ValueError) as exc_info:
             compliance.from_a2a_request(request)
-        
+
         assert "Chain topology violation" in str(exc_info.value)
         assert "planner must send to coder" in str(exc_info.value)
 
@@ -106,7 +103,7 @@ class TestIngressTopologyEnforcement:
         # Runtime is FLAT topology
         switch._topology = "flat"
         switch._epoch = 3
-        
+
         # Request claims STAR topology and uses single recipient (wrong for flat!)
         request = {
             "method": "send",
@@ -114,19 +111,17 @@ class TestIngressTopologyEnforcement:
                 "sender": "planner",
                 "recipient": "coder",  # Single recipient, not list!
                 "content": "test",
-                "metadata": {
-                    "topology": "star"  # Claims star, but runtime is flat!
-                }
-            }
+                "metadata": {"topology": "star"},  # Claims star, but runtime is flat!
+            },
         }
-        
+
         # In flat topology, if no recipients list, creates empty list
         # This results in no messages being created
         messages = compliance.from_a2a_request(request)
-        
+
         # No messages created because flat needs recipients (plural)
         assert len(messages) == 0
-        
+
         # Now send valid flat request
         request_valid = {
             "method": "send",
@@ -134,19 +129,17 @@ class TestIngressTopologyEnforcement:
                 "sender": "planner",
                 "recipients": ["coder", "runner"],  # List required for flat
                 "content": "broadcast",
-                "metadata": {
-                    "topology": "chain"  # Still lying, but ignored!
-                }
-            }
+                "metadata": {"topology": "chain"},  # Still lying, but ignored!
+            },
         }
-        
+
         messages = compliance.from_a2a_request(request_valid)
-        
+
         # Flat topology creates multiple messages
         assert len(messages) == 2
         recipients = {msg.recipient for msg in messages}
         assert recipients == {"coder", "runner"}
-        
+
         # All use runtime epoch, not metadata
         for msg in messages:
             assert msg.topo_epoch == 3
@@ -156,26 +149,23 @@ class TestIngressTopologyEnforcement:
         """Test metadata["topology"] is preserved as claimed_topology but not used."""
         switch._topology = "star"
         switch._epoch = 1
-        
+
         request = {
             "method": "send",
             "params": {
                 "sender": "external",
                 "recipient": "coder",
                 "content": "test",
-                "metadata": {
-                    "topology": "chain",  # External claims chain
-                    "episode": "ep1"
-                }
-            }
+                "metadata": {"topology": "chain", "episode": "ep1"},  # External claims chain
+            },
         }
-        
+
         messages = compliance.from_a2a_request(request)
-        
+
         # Should route based on star (runtime), not chain (claimed)
         assert len(messages) == 1
         msg = messages[0]
-        
+
         # For external sender in star, should route to planner
         # (Implementation may vary - checking it doesn't crash on wrong topology)
         assert msg.msg_id.startswith("msg-")
@@ -187,49 +177,49 @@ class TestIngressTopologyEnforcement:
         # Test star topology enforcement
         switch._topology = "star"
         switch._epoch = 1
-        
+
         request = {
             "method": "send",
             "params": {
                 "sender": "coder",
                 "recipient": "runner",
                 "content": "star test",
-                "metadata": {"topology": "chain"}  # Claims chain but runtime is star
-            }
+                "metadata": {"topology": "chain"},  # Claims chain but runtime is star
+            },
         }
         messages = compliance.from_a2a_request(request)
         assert messages[0].recipient == "planner"  # Star enforced
         assert messages[0].topo_epoch == 1
-        
+
         # Test chain topology enforcement
         switch._topology = "chain"
         switch._epoch = 2
-        
+
         request = {
             "method": "send",
             "params": {
                 "sender": "external",
                 "recipient": "planner",
                 "content": "chain test",
-                "metadata": {"topology": "flat"}  # Claims flat but runtime is chain
-            }
+                "metadata": {"topology": "flat"},  # Claims flat but runtime is chain
+            },
         }
         messages = compliance.from_a2a_request(request)
         assert messages[0].recipient == "planner"
         assert messages[0].topo_epoch == 2
-        
+
         # Test flat topology enforcement
         switch._topology = "flat"
         switch._epoch = 3
-        
+
         request = {
             "method": "send",
             "params": {
                 "sender": "planner",
                 "recipients": ["coder", "runner"],
                 "content": "flat test",
-                "metadata": {"topology": "star"}  # Claims star but runtime is flat
-            }
+                "metadata": {"topology": "star"},  # Claims star but runtime is flat
+            },
         }
         messages = compliance.from_a2a_request(request)
         assert len(messages) == 2  # Flat creates multiple messages
@@ -242,7 +232,7 @@ class TestIngressTopologyEnforcement:
         # Runtime is chain
         switch._topology = "chain"
         switch._epoch = 5
-        
+
         # External tries to bypass planner entry, claims star topology
         request = {
             "method": "send",
@@ -250,14 +240,12 @@ class TestIngressTopologyEnforcement:
                 "sender": "external",
                 "recipient": "runner",  # Trying to skip planner!
                 "content": "bypass attempt",
-                "metadata": {
-                    "topology": "star"  # Claims star to try to bypass
-                }
-            }
+                "metadata": {"topology": "star"},  # Claims star to try to bypass
+            },
         }
-        
+
         # Should enforce chain rule: external must enter via planner
         with pytest.raises(ValueError) as exc_info:
             compliance.from_a2a_request(request)
-        
+
         assert "External chain ingress must route through planner" in str(exc_info.value)

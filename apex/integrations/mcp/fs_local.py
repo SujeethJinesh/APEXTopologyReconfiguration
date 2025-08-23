@@ -47,21 +47,19 @@ class LocalFS(FS):
         def _write() -> None:
             # Ensure parent directory exists
             abspath.parent.mkdir(parents=True, exist_ok=True)
-            
+
             # Create temp file in same directory for atomic rename
             fd, tmppath = tempfile.mkstemp(
-                dir=abspath.parent,
-                prefix=f".{abspath.name}.",
-                suffix=".tmp"
+                dir=abspath.parent, prefix=f".{abspath.name}.", suffix=".tmp"
             )
-            
+
             try:
                 # Write data to temp file
                 with os.fdopen(fd, "wb") as f:
                     f.write(data)
                     f.flush()
                     os.fsync(f.fileno())  # Ensure data is on disk
-                
+
                 # Atomic rename (replace target atomically)
                 os.replace(tmppath, str(abspath))  # os.replace is atomic on POSIX
             except Exception:
@@ -106,24 +104,22 @@ class LocalFS(FS):
             text = abspath.read_text(encoding="utf-8")
             if old_sub not in text:
                 raise ValueError("old substring not found in file")
-            
+
             # Apply patch to create new content
             new_text = text.replace(old_sub, new_sub, 1)
-            
+
             # Write atomically using temp file
             fd, tmppath = tempfile.mkstemp(
-                dir=abspath.parent,
-                prefix=f".{abspath.name}.",
-                suffix=".patch.tmp"
+                dir=abspath.parent, prefix=f".{abspath.name}.", suffix=".patch.tmp"
             )
-            
+
             try:
                 # Write patched content to temp file
                 with os.fdopen(fd, "w", encoding="utf-8") as f:
                     f.write(new_text)
                     f.flush()
                     os.fsync(f.fileno())  # Ensure data is on disk
-                
+
                 # Atomic rename (replace target atomically)
                 os.replace(tmppath, str(abspath))
             except Exception:

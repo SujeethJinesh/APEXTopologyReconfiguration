@@ -20,6 +20,7 @@ try:
     from a2a import AgentCard
     from a2a.envelope import Envelope
     from a2a.schema import validate_request
+
     HAS_A2A_SDK = True
 except ImportError:
     try:
@@ -28,6 +29,7 @@ except ImportError:
         from python_a2a import AgentCard
         from python_a2a.envelope import Envelope
         from python_a2a.schema import validate_request
+
         HAS_A2A_SDK = True
     except ImportError:
         HAS_A2A_SDK = False
@@ -40,6 +42,7 @@ except ImportError:
 try:
     if a2a_mod:
         from a2a.http_server import create_ingress_app
+
         HAS_A2A_HTTP = True
     else:
         HAS_A2A_HTTP = False
@@ -85,7 +88,7 @@ class A2ACompliance:
         self.fanout_limit = fanout_limit
         self.include_summarizer = include_summarizer
         self._ingress_task = None
-        
+
         # Chain topology order for next-hop enforcement
         self.chain_order = ["planner", "coder", "runner", "critic", "summarizer"]
         self.chain_next = {
@@ -171,7 +174,11 @@ class A2ACompliance:
                     "episode": msg.episode_id,
                     "redelivered": msg.redelivered,
                     "attempt": msg.attempt,
-                    "orig_request_id": msg.payload.get("ext_request_id") if msg.payload.get("ext_request_id") else None,
+                    "orig_request_id": (
+                        msg.payload.get("ext_request_id")
+                        if msg.payload.get("ext_request_id")
+                        else None
+                    ),
                 },
             },
         }
@@ -203,18 +210,18 @@ class A2ACompliance:
 
         # Get active topology from switch (NEVER trust metadata!)
         topology, epoch = self.switch.active()
-        
+
         # Metadata is only informational, not for enforcement
         metadata = params.get("metadata", {})
         # Store what external claimed (for debugging) but don't use it
         if "topology" in metadata:
             metadata["claimed_topology"] = metadata["topology"]
-        
+
         # Apply topology rules and generate messages
         messages = []
         sender = params.get("sender", "external")
         content = params.get("content", "")
-        
+
         # Preserve external request ID if present
         ext_request_id = params.get("id")
         if ext_request_id and isinstance(params.get("metadata"), dict):
@@ -231,7 +238,11 @@ class A2ACompliance:
                         sender=sender,
                         recipient=self.planner_id,
                         topo_epoch=epoch,
-                        payload={"content": content, "ext_request_id": ext_request_id} if ext_request_id else {"content": content},
+                        payload=(
+                            {"content": content, "ext_request_id": ext_request_id}
+                            if ext_request_id
+                            else {"content": content}
+                        ),
                     )
                 )
             else:
@@ -245,14 +256,18 @@ class A2ACompliance:
                             sender=sender,
                             recipient=recipient,
                             topo_epoch=epoch,
-                            payload={"content": content, "ext_request_id": ext_request_id} if ext_request_id else {"content": content},
+                            payload=(
+                                {"content": content, "ext_request_id": ext_request_id}
+                                if ext_request_id
+                                else {"content": content}
+                            ),
                         )
                     )
 
         elif topology == "chain":
             # Sequential processing through roles with next-hop enforcement
             recipient = params.get("recipient")
-            
+
             # External senders must enter through planner
             if sender not in self.roles:
                 if recipient != "planner":
@@ -266,7 +281,11 @@ class A2ACompliance:
                         sender=sender,
                         recipient="planner",
                         topo_epoch=epoch,
-                        payload={"content": content, "ext_request_id": ext_request_id} if ext_request_id else {"content": content},
+                        payload=(
+                            {"content": content, "ext_request_id": ext_request_id}
+                            if ext_request_id
+                            else {"content": content}
+                        ),
                     )
                 )
             else:
@@ -284,7 +303,11 @@ class A2ACompliance:
                         sender=sender,
                         recipient=recipient,
                         topo_epoch=epoch,
-                        payload={"content": content, "ext_request_id": ext_request_id} if ext_request_id else {"content": content},
+                        payload=(
+                            {"content": content, "ext_request_id": ext_request_id}
+                            if ext_request_id
+                            else {"content": content}
+                        ),
                     )
                 )
 
@@ -301,7 +324,11 @@ class A2ACompliance:
                         sender=sender,
                         recipient=recipient,
                         topo_epoch=epoch,
-                        payload={"content": content, "ext_request_id": ext_request_id} if ext_request_id else {"content": content},
+                        payload=(
+                            {"content": content, "ext_request_id": ext_request_id}
+                            if ext_request_id
+                            else {"content": content}
+                        ),
                     )
                 )
 

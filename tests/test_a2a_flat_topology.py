@@ -41,13 +41,13 @@ class TestFlatTopologyEnforcement:
         # Missing recipients list
         with pytest.raises(ValueError) as exc_info:
             await protocol.send(sender="planner", content="missing recipients")
-        
+
         assert "Flat topology requires recipients list" in str(exc_info.value)
-        
+
         # Single recipient (wrong parameter) also fails
         with pytest.raises(ValueError) as exc_info:
             await protocol.send(sender="planner", recipient="coder", content="single")
-        
+
         assert "Flat topology requires recipients list" in str(exc_info.value)
 
     @pytest.mark.asyncio
@@ -55,7 +55,7 @@ class TestFlatTopologyEnforcement:
         """Test empty recipients list is rejected."""
         with pytest.raises(ValueError) as exc_info:
             await protocol.send(sender="planner", recipients=[], content="empty")
-        
+
         assert "Flat topology requires recipients list" in str(exc_info.value)
 
     @pytest.mark.asyncio
@@ -63,54 +63,48 @@ class TestFlatTopologyEnforcement:
         """Test fanout limit is enforced."""
         # At limit (3) - should work
         await protocol.send(
-            sender="planner",
-            recipients=["coder", "runner", "critic"],
-            content="at limit"
+            sender="planner", recipients=["coder", "runner", "critic"], content="at limit"
         )
         # Should succeed without error
-        
+
         # Over limit (4) - should fail
         with pytest.raises(ValueError) as exc_info:
             await protocol.send(
                 sender="planner",
                 recipients=["coder", "runner", "critic", "summarizer"],
-                content="over limit"
+                content="over limit",
             )
-        
+
         assert "Recipients exceed fanout limit of 3" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_flat_creates_unique_message_per_recipient(self, protocol, router):
         """Test flat topology creates unique message for each recipient."""
         recipients = ["coder", "runner", "critic"]
-        
-        await protocol.send(
-            sender="planner",
-            recipients=recipients,
-            content="broadcast"
-        )
-        
+
+        await protocol.send(sender="planner", recipients=recipients, content="broadcast")
+
         # Should route once per recipient
         assert router.route.call_count == 3
-        
+
         # Collect all messages
         messages = [router.route.call_args_list[i][0][0] for i in range(3)]
-        
+
         # Each message has unique msg_id
         msg_ids = {msg.msg_id for msg in messages}
         assert len(msg_ids) == 3, "Each recipient should get unique msg_id"
-        
+
         # All msg_ids are UUIDs
         for msg_id in msg_ids:
             assert msg_id.startswith("msg-")
             hex_part = msg_id[4:]
             assert len(hex_part) == 32  # UUID hex length
             assert all(c in "0123456789abcdef" for c in hex_part)
-        
+
         # Each message goes to different recipient
         actual_recipients = {msg.recipient for msg in messages}
         assert actual_recipients == set(recipients)
-        
+
         # All have same content
         for msg in messages:
             assert msg.payload["content"] == "broadcast"
@@ -121,20 +115,18 @@ class TestFlatTopologyEnforcement:
         # Send multiple broadcasts
         for i in range(3):
             await protocol.send(
-                sender="planner",
-                recipients=["coder", "runner"],
-                content=f"message-{i}"
+                sender="planner", recipients=["coder", "runner"], content=f"message-{i}"
             )
-        
+
         # Total: 3 broadcasts * 2 recipients = 6 messages
         assert router.route.call_count == 6
-        
+
         # Group messages by recipient
         messages_by_recipient = {"coder": [], "runner": []}
         for call in router.route.call_args_list:
             msg = call[0][0]
             messages_by_recipient[msg.recipient].append(msg)
-        
+
         # Each recipient gets 3 messages in order
         for recipient, messages in messages_by_recipient.items():
             assert len(messages) == 3
@@ -148,11 +140,9 @@ class TestFlatTopologyEnforcement:
     async def test_flat_with_single_recipient_in_list(self, protocol, router):
         """Test flat with single-item recipients list works."""
         await protocol.send(
-            sender="planner",
-            recipients=["coder"],  # List with one item
-            content="single in list"
+            sender="planner", recipients=["coder"], content="single in list"  # List with one item
         )
-        
+
         assert router.route.call_count == 1
         msg = router.route.call_args[0][0]
         assert msg.recipient == "coder"
@@ -162,16 +152,12 @@ class TestFlatTopologyEnforcement:
     async def test_flat_any_sender_allowed(self, protocol, router):
         """Test flat topology allows any sender (no hub restriction)."""
         senders = ["planner", "coder", "runner", "external", "unknown"]
-        
+
         for sender in senders:
             router.route.reset_mock()
-            
-            await protocol.send(
-                sender=sender,
-                recipients=["critic"],
-                content=f"from {sender}"
-            )
-            
+
+            await protocol.send(sender=sender, recipients=["critic"], content=f"from {sender}")
+
             assert router.route.call_count == 1
             msg = router.route.call_args[0][0]
             assert msg.sender == sender
@@ -182,20 +168,18 @@ class TestFlatTopologyEnforcement:
         """Test duplicate recipients in list."""
         # Same recipient twice
         await protocol.send(
-            sender="planner",
-            recipients=["coder", "coder", "runner"],
-            content="duplicates"
+            sender="planner", recipients=["coder", "coder", "runner"], content="duplicates"
         )
-        
+
         # Should still create 3 messages (one per list entry)
         assert router.route.call_count == 3
-        
+
         messages = [router.route.call_args_list[i][0][0] for i in range(3)]
         recipients = [msg.recipient for msg in messages]
-        
+
         # Order preserved, duplicates included
         assert recipients == ["coder", "coder", "runner"]
-        
+
         # But each has unique msg_id
         msg_ids = [msg.msg_id for msg in messages]
         assert len(set(msg_ids)) == 3  # All unique
@@ -205,25 +189,17 @@ class TestFlatTopologyEnforcement:
         """Test flat topology uses current epoch from switch."""
         # Change epoch
         switch.active.return_value = ("flat", 5)
-        
-        await protocol.send(
-            sender="planner",
-            recipients=["coder"],
-            content="epoch test"
-        )
-        
+
+        await protocol.send(sender="planner", recipients=["coder"], content="epoch test")
+
         msg = router.route.call_args[0][0]
         assert msg.topo_epoch == 5
-        
+
         # Change epoch again
         switch.active.return_value = ("flat", 10)
-        
-        await protocol.send(
-            sender="planner",
-            recipients=["runner"],
-            content="new epoch"
-        )
-        
+
+        await protocol.send(sender="planner", recipients=["runner"], content="new epoch")
+
         msg = router.route.call_args[0][0]
         assert msg.topo_epoch == 10
 
@@ -231,16 +207,14 @@ class TestFlatTopologyEnforcement:
     async def test_flat_all_messages_same_epoch_per_send(self, protocol, router, switch):
         """Test all messages from one send have the same epoch."""
         switch.active.return_value = ("flat", 7)
-        
+
         await protocol.send(
-            sender="planner",
-            recipients=["coder", "runner", "critic"],
-            content="multi-recipient"
+            sender="planner", recipients=["coder", "runner", "critic"], content="multi-recipient"
         )
-        
+
         assert router.route.call_count == 3
         messages = [router.route.call_args_list[i][0][0] for i in range(3)]
-        
+
         # All messages from this send should have the same epoch
         epochs = {msg.topo_epoch for msg in messages}
         assert epochs == {7}, "All messages from one send must have same epoch"

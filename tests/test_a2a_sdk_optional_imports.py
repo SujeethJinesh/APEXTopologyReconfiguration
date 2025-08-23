@@ -4,8 +4,10 @@ import importlib.util
 
 import pytest
 
-
-HAS_A2A = importlib.util.find_spec("a2a") is not None or importlib.util.find_spec("python_a2a") is not None
+HAS_A2A = (
+    importlib.util.find_spec("a2a") is not None
+    or importlib.util.find_spec("python_a2a") is not None
+)
 HAS_UVICORN = importlib.util.find_spec("uvicorn") is not None
 
 
@@ -18,10 +20,12 @@ class TestA2ASDKImports:
         # This should work if a2a-sdk is installed
         try:
             import a2a
+
             assert a2a is not None
             module_name = "a2a"
         except ImportError:
             import python_a2a as a2a
+
             assert a2a is not None
             module_name = "python_a2a"
 
@@ -41,10 +45,11 @@ class TestA2ASDKImports:
 
     def test_agent_card_with_sdk(self):
         """Test agent card generation works with SDK."""
+        from unittest.mock import MagicMock
+
         from apex.a2a import A2ACompliance
         from apex.runtime.router import Router
         from apex.runtime.switch import SwitchEngine
-        from unittest.mock import MagicMock
 
         router = MagicMock(spec=Router)
         switch = MagicMock(spec=SwitchEngine)
@@ -79,6 +84,7 @@ class TestA2AHTTPIngress:
     def test_uvicorn_available(self):
         """Test uvicorn can be imported for HTTP ingress."""
         import uvicorn
+
         assert uvicorn is not None
         assert hasattr(uvicorn, "Config")
         assert hasattr(uvicorn, "Server")
@@ -93,7 +99,7 @@ class TestA2AHTTPIngress:
         with patch("apex.a2a.sdk_adapter.HAS_A2A_HTTP", True):
             with patch("apex.a2a.sdk_adapter.create_ingress_app") as mock_create_app:
                 mock_create_app.return_value = MagicMock()  # Mock app
-                
+
                 from apex.a2a import A2AProtocol
                 from apex.runtime.router import Router
                 from apex.runtime.switch import SwitchEngine

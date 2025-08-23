@@ -89,10 +89,10 @@ class A2AProtocol:
         """
         # Get active topology from switch (dynamic!)
         active_topology, epoch = self.switch.active()
-        
+
         # Allow test override, otherwise use active topology
         topology = force_topology if force_topology else active_topology
-        
+
         # Build message(s) based on active topology
         messages = []
 
@@ -102,7 +102,7 @@ class A2AProtocol:
                 raise ValueError("Star topology requires recipient")
             if recipients:
                 raise ValueError("Star topology requires recipient, not recipients list")
-            
+
             # Star topology: all non-planner communicate through planner
             if sender != self.planner_id and recipient != self.planner_id:
                 # Non-planner must route through planner
