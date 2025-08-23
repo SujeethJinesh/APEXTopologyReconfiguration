@@ -1,0 +1,92 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.11.6, pytest-8.4.1, pluggy-1.6.0
+rootdir: /Users/sujeethjinesh/Desktop/APEXTopologyReconfiguration
+configfile: pyproject.toml
+plugins: asyncio-1.1.0, anyio-4.9.0, langsmith-0.4.1, cov-6.2.1
+asyncio: mode=Mode.STRICT, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 109 items
+
+tests/test_a2a_chain_topology.py ......F.FF                              [  9%]
+tests/test_a2a_flat_topology.py ..........                               [ 18%]
+tests/test_a2a_ingress_chain_enforcement.py ..........                   [ 27%]
+tests/test_a2a_ingress_epoch_gating.py ss...                             [ 32%]
+tests/test_a2a_ingress_topology_switch.py ......                         [ 37%]
+tests/test_a2a_sdk_integration.py ..F...F                                [ 44%]
+tests/test_a2a_sdk_optional_imports.py sss...                            [ 49%]
+tests/test_a2a_star_topology.py ........                                 [ 56%]
+tests/test_a2a_topology_switch_runtime.py .......                        [ 63%]
+tests/test_coordinator_dwell_cooldown.py ..                              [ 65%]
+tests/test_defaults_config.py .                                          [ 66%]
+tests/test_docs_m0_summaries.py .                                        [ 66%]
+tests/test_evidence_pack_presence.py F                                   [ 67%]
+tests/test_fs_local_whitelist_patch_search.py ....                       [ 71%]
+tests/test_llm_http_client.py ....                                       [ 75%]
+tests/test_makefile_targets.py .                                         [ 76%]
+tests/test_mcp_fastmcp_wrappers.py ......s..                             [ 84%]
+tests/test_mcp_traversal_denial.py ......                                [ 89%]
+tests/test_message_dataclass.py .                                        [ 90%]
+tests/test_msg_id_uniqueness_10k.py .                                    [ 91%]
+tests/test_precommit_config.py .                                         [ 92%]
+tests/test_protocols_importable.py .                                     [ 93%]
+tests/test_pytest_adapter_discover_run.py .                              [ 94%]
+tests/test_router_fifo_ttl_retry.py ...                                  [ 97%]
+tests/test_switch_epoch_gating_atomic.py ...                             [100%]
+
+=================================== FAILURES ===================================
+_______ TestErrorEnvelopes.test_invalid_recipient_returns_error_envelope _______
+tests/test_a2a_chain_topology.py:176: in test_invalid_recipient_returns_error_envelope
+    result = await protocol.send(sender="planner", recipient="unknown_agent", content="test")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+apex/a2a/protocol.py:140: in send
+    raise ValueError(
+E   ValueError: Chain topology violation: planner must send to coder, not unknown_agent
+_____________ TestFlatTopologyFanout.test_fanout_at_limit_succeeds _____________
+tests/test_a2a_chain_topology.py:209: in test_fanout_at_limit_succeeds
+    result = await protocol.send(
+apex/a2a/protocol.py:135: in send
+    raise ValueError("Chain topology requires recipient")
+E   ValueError: Chain topology requires recipient
+___________ TestFlatTopologyFanout.test_fanout_exceeds_limit_raises ____________
+tests/test_a2a_chain_topology.py:230: in test_fanout_exceeds_limit_raises
+    assert "Recipients exceed fanout limit of 2" in str(exc_info.value)
+E   AssertionError: assert 'Recipients exceed fanout limit of 2' in 'Chain topology requires recipient'
+E    +  where 'Chain topology requires recipient' = str(ValueError('Chain topology requires recipient'))
+E    +    where ValueError('Chain topology requires recipient') = <ExceptionInfo ValueError('Chain topology requires recipient') tblen=2>.value
+__________ TestA2AEnvelopeAndRouting.test_flat_topology_fanout_limit ___________
+tests/test_a2a_sdk_integration.py:89: in test_flat_topology_fanout_limit
+    await protocol.send(
+apex/a2a/protocol.py:102: in send
+    raise ValueError("Star topology requires recipient")
+E   ValueError: Star topology requires recipient
+
+During handling of the above exception, another exception occurred:
+tests/test_a2a_sdk_integration.py:88: in test_flat_topology_fanout_limit
+    with pytest.raises(ValueError, match="exceed fanout limit"):
+E   AssertionError: Regex pattern did not match.
+E    Regex: 'exceed fanout limit'
+E    Input: 'Star topology requires recipient'
+____________ TestA2ACompliance.test_from_a2a_request_flat_topology _____________
+tests/test_a2a_sdk_integration.py:197: in test_from_a2a_request_flat_topology
+    assert len(messages) == 2
+E   assert 0 == 2
+E    +  where 0 = len([])
+_____________ test_evidence_pack_present_for_completed_milestones ______________
+tests/test_evidence_pack_presence.py:30: in test_evidence_pack_present_for_completed_milestones
+    assert section in content, f"Missing section '{section}' in {evidence_pack}"
+E   AssertionError: Missing section '## Milestone:' in docs/M3/evidence_pack.md
+E   assert '## Milestone:' in '# M3 Evidence Pack - Final Submission\n\n## Summary\nThis PR addresses all M3 blockers with complete runtime topology...ched  \n✅ 98 tests passing (new tests all green)\n\n---\n*Generated: 2025-08-22*  \n*Ready for final review and merge*'
+=============================== warnings summary ===============================
+apex/integrations/mcp/test_api.py:6
+  /Users/sujeethjinesh/Desktop/APEXTopologyReconfiguration/apex/integrations/mcp/test_api.py:6: PytestCollectionWarning: cannot collect test class 'Test' because it has a __init__ constructor (from: tests/test_protocols_importable.py)
+    class Test(Protocol):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+- generated xml file: /Users/sujeethjinesh/Desktop/APEXTopologyReconfiguration/docs/M3/artifacts/junit_latest.xml -
+=========================== short test summary info ============================
+FAILED tests/test_a2a_chain_topology.py::TestErrorEnvelopes::test_invalid_recipient_returns_error_envelope
+FAILED tests/test_a2a_chain_topology.py::TestFlatTopologyFanout::test_fanout_at_limit_succeeds
+FAILED tests/test_a2a_chain_topology.py::TestFlatTopologyFanout::test_fanout_exceeds_limit_raises
+FAILED tests/test_a2a_sdk_integration.py::TestA2AEnvelopeAndRouting::test_flat_topology_fanout_limit
+FAILED tests/test_a2a_sdk_integration.py::TestA2ACompliance::test_from_a2a_request_flat_topology
+FAILED tests/test_evidence_pack_presence.py::test_evidence_pack_present_for_completed_milestones
+============== 6 failed, 97 passed, 6 skipped, 1 warning in 4.22s ==============

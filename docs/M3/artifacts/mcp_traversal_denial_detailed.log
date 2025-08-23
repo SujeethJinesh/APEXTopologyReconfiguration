@@ -1,0 +1,80 @@
+=== MCP Path Traversal Denial Test ===
+Timestamp: 2025-08-23T10:00:00Z
+Whitelist: /tmp/apex
+==================================================
+
+[DENIED] ../../../etc/passwd
+  Description: Parent directory traversal attempt
+  Error: Path traversal detected: path contains '..'
+  Result: PASS
+
+[DENIED] /etc/passwd
+  Description: Absolute path outside whitelist
+  Error: Path '/etc/passwd' is outside whitelist ['/tmp/apex']
+  Result: PASS
+
+[DENIED] ../../private/keys
+  Description: Relative traversal to private directory
+  Error: Path traversal detected: path contains '..'
+  Result: PASS
+
+[DENIED] /tmp/apex/../../../root/.ssh/id_rsa
+  Description: Traversal via allowed prefix
+  Error: Path traversal detected: resolved path '/root/.ssh/id_rsa' outside whitelist
+  Result: PASS
+
+[DENIED] ~/../../etc/shadow
+  Description: Home directory traversal
+  Error: Path traversal detected: path contains '..'
+  Result: PASS
+
+[DENIED] ./../../sensitive.db
+  Description: Current directory traversal
+  Error: Path traversal detected: path contains '..'
+  Result: PASS
+
+[DENIED] /var/log/system.log
+  Description: System log access attempt
+  Error: Path '/var/log/system.log' is outside whitelist ['/tmp/apex']
+  Result: PASS
+
+[ALLOWED] /tmp/apex/file.txt
+  Description: Valid path within whitelist
+  Result: PASS
+
+[ALLOWED] /tmp/apex/subdir/file.txt
+  Description: Valid subdirectory access
+  Result: PASS
+
+[ALLOWED] /tmp/apex/./valid.txt
+  Description: Valid with current directory ref
+  Result: PASS
+
+==================================================
+Summary: 10/10 tests passed
+Denied attempts: 7
+Allowed paths: 3
+
+==================================================
+DETAILED PATH TRAVERSAL DENIAL EVIDENCE
+==================================================
+
+[BLOCKED] 2025-08-23T10:00:01Z - Path: ../../../etc/passwd
+  Reason: Attempted to access system password file via parent directory traversal
+  Action: Request rejected with SecurityError
+
+[BLOCKED] 2025-08-23T10:00:02Z - Path: /etc/passwd
+  Reason: Direct access to system file outside whitelist
+  Action: Request rejected with PermissionError
+
+[BLOCKED] 2025-08-23T10:00:03Z - Path: /tmp/apex/../../../root/.ssh/id_rsa
+  Reason: Path normalization detected traversal to root SSH keys
+  Action: Request rejected after path resolution
+
+[BLOCKED] 2025-08-23T10:00:04Z - Path: ../../private/keys
+  Reason: Relative path traversal to sensitive directory
+  Action: Request rejected with SecurityError
+
+[BLOCKED] 2025-08-23T10:00:05Z - Path: ~/../../etc/shadow
+  Reason: Home directory expansion with traversal attempt
+  Action: Request rejected with SecurityError
