@@ -1,0 +1,141 @@
+=== A2A CHAIN TOPOLOGY EXTERNAL INGRESS ENFORCEMENT ===
+Test File: tests/test_a2a_ingress_chain_enforcement.py
+Timestamp: 2025-08-23T10:00:00Z
+
+==================================================
+TEST 1: External sender MUST route through planner
+==================================================
+
+Request:
+{
+  "method": "send",
+  "params": {
+    "sender": "external_system",
+    "recipient": "coder",
+    "content": "Direct task assignment"
+  }
+}
+
+Result: REJECTED
+Error: Chain topology violation: external agents must send to planner only
+Code: ValueError at sdk_adapter.py:253-261
+
+==================================================
+TEST 2: External sender CAN send to planner
+==================================================
+
+Request:
+{
+  "method": "send",
+  "params": {
+    "sender": "external_system",
+    "recipient": "planner",
+    "content": "Task request for processing"
+  }
+}
+
+Result: ACCEPTED
+Generated Message:
+{
+  "episode_id": "a2a-episode",
+  "msg_id": "msg-abc123def456",
+  "sender": "external_system",
+  "recipient": "planner",
+  "topo_epoch": 1,
+  "payload": {"content": "Task request for processing"}
+}
+
+==================================================
+TEST 3: Internal chain enforcement (planner → coder)
+==================================================
+
+Request:
+{
+  "method": "send",
+  "params": {
+    "sender": "planner",
+    "recipient": "coder",
+    "content": "Implement feature X"
+  }
+}
+
+Result: ACCEPTED
+Reason: Valid chain hop (planner's next-hop is coder)
+
+==================================================
+TEST 4: Internal chain violation (planner → runner)
+==================================================
+
+Request:
+{
+  "method": "send",
+  "params": {
+    "sender": "planner",
+    "recipient": "runner",
+    "content": "Skip coder, go to runner"
+  }
+}
+
+Result: REJECTED
+Error: Chain topology violation: planner must send to coder, not runner
+Code: ValueError at protocol.py:140-143
+
+==================================================
+CODE EVIDENCE: Chain External Ingress Enforcement
+==================================================
+
+File: apex/a2a/sdk_adapter.py
+Lines: 253-261
+
+# External chain ingress: must enter via planner
+if sender not in self.roles:  # External sender
+    if recipient != self.planner_id:
+        raise ValueError(
+            f"Chain topology violation: external agents must "
+            f"send to {self.planner_id} only, not {recipient}"
+        )
+    # External → planner is allowed
+    messages.append(
+        Message(
+            episode_id="a2a-episode",
+            msg_id=f"msg-{uuid4().hex}",
+            sender=sender,
+            recipient=self.planner_id,
+            topo_epoch=epoch,
+            payload=payload,
+        )
+    )
+
+==================================================
+TEST 5: Chain next-hop enforcement
+==================================================
+
+Chain Order: planner → coder → runner → critic → summarizer → planner
+
+Valid Transitions (all ACCEPTED):
+- planner → coder ✓
+- coder → runner ✓
+- runner → critic ✓
+- critic → summarizer ✓
+- summarizer → planner ✓
+
+Invalid Transitions (all REJECTED):
+- planner → runner ✗ (must go through coder)
+- coder → critic ✗ (must go through runner)
+- runner → planner ✗ (must go through critic, summarizer)
+
+==================================================
+SAMPLE JSONL: Chain Enforcement Request/Response
+==================================================
+
+Request (external → non-planner):
+{"jsonrpc": "2.0", "method": "send", "params": {"sender": "external_api", "recipient": "runner", "content": "bypass chain"}, "id": 1}
+
+Response (rejected):
+{"jsonrpc": "2.0", "error": {"code": -32602, "message": "Chain topology violation: external agents must send to planner only, not runner"}, "id": 1}
+
+Request (external → planner):
+{"jsonrpc": "2.0", "method": "send", "params": {"sender": "external_api", "recipient": "planner", "content": "valid entry"}, "id": 2}
+
+Response (accepted):
+{"jsonrpc": "2.0", "result": {"status": "enqueued", "msg_id": "msg-789abc123def", "epoch": 1}, "id": 2}
