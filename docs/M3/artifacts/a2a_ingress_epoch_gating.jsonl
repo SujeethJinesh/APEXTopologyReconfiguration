@@ -1,13 +1,13 @@
-{"event": "enqueue", "epoch_active": 1, "msg_epoch": 1, "action": "accepted", "agent_id": "coder", "queue_len": 1, "msg_id": "msg-epoch1-000", "timestamp": "2025-08-23T02:23:56.332385Z"}
-{"event": "enqueue", "epoch_active": 1, "msg_epoch": 1, "action": "accepted", "agent_id": "coder", "queue_len": 2, "msg_id": "msg-epoch1-001", "timestamp": "2025-08-23T02:23:56.333375Z"}
-{"event": "enqueue", "epoch_active": 1, "msg_epoch": 1, "action": "accepted", "agent_id": "coder", "queue_len": 3, "msg_id": "msg-epoch1-002", "timestamp": "2025-08-23T02:23:56.333415Z"}
-{"event": "dequeue", "epoch_active": 1, "msg_epoch": 1, "action": "delivered", "agent_id": "coder", "queue_len": 2, "msg_id": "msg-epoch1-000", "timestamp": "2025-08-23T02:23:56.333424Z"}
-{"event": "dequeue", "epoch_active": 1, "msg_epoch": 1, "action": "delivered", "agent_id": "coder", "queue_len": 1, "msg_id": "msg-epoch1-001", "timestamp": "2025-08-23T02:23:56.333519Z"}
-{"event": "dequeue", "epoch_active": 1, "msg_epoch": 1, "action": "delivered", "agent_id": "coder", "queue_len": 0, "msg_id": "msg-epoch1-002", "timestamp": "2025-08-23T02:23:56.333535Z"}
-{"event": "enqueue", "epoch_active": 1, "msg_epoch": 2, "action": "gated", "agent_id": "runner", "queue_len": 1, "msg_id": "msg-epoch2-000", "timestamp": "2025-08-23T02:23:56.333546Z"}
-{"event": "enqueue", "epoch_active": 1, "msg_epoch": 2, "action": "gated", "agent_id": "runner", "queue_len": 2, "msg_id": "msg-epoch2-001", "timestamp": "2025-08-23T02:23:56.333559Z"}
-{"event": "dequeue", "epoch_active": 2, "msg_epoch": 2, "action": "delivered", "agent_id": "runner", "queue_len": 1, "msg_id": "msg-epoch2-000", "timestamp": "2025-08-23T02:23:56.333588Z"}
-{"event": "dequeue", "epoch_active": 2, "msg_epoch": 2, "action": "delivered", "agent_id": "runner", "queue_len": 0, "msg_id": "msg-epoch2-001", "timestamp": "2025-08-23T02:23:56.333595Z"}
-{"event": "enqueue", "epoch_active": 2, "msg_epoch": 3, "action": "gated", "agent_id": "critic", "queue_len": 1, "msg_id": "msg-epoch3-001", "timestamp": "2025-08-23T02:23:56.333600Z"}
-{"event": "dequeue_attempt", "epoch_active": 2, "msg_epoch": 3, "action": "blocked", "agent_id": "critic", "queue_len": 1, "msg_id": "msg-epoch3-001", "timestamp": "2025-08-23T02:23:56.333617Z", "reason": "epoch_not_active"}
-{"event": "dequeue", "epoch_active": 3, "msg_epoch": 3, "action": "delivered", "agent_id": "critic", "queue_len": 0, "msg_id": "msg-epoch3-001", "timestamp": "2025-08-23T02:23:56.333625Z"}
+{"event":"enqueue","epoch_active":1,"msg_epoch":1,"action":"accepted","agent_id":"coder","queue_len":1,"msg_id":"msg-epoch1-000","timestamp":"2025-08-23T02:23:56.332385Z"}
+{"event":"enqueue","epoch_active":1,"msg_epoch":1,"action":"accepted","agent_id":"coder","queue_len":2,"msg_id":"msg-epoch1-001","timestamp":"2025-08-23T02:23:56.333375Z"}
+{"event":"enqueue","epoch_active":1,"msg_epoch":1,"action":"accepted","agent_id":"coder","queue_len":3,"msg_id":"msg-epoch1-002","timestamp":"2025-08-23T02:23:56.333415Z"}
+{"event":"dequeue","epoch_active":1,"msg_epoch":1,"action":"delivered","agent_id":"coder","queue_len":2,"msg_id":"msg-epoch1-000","timestamp":"2025-08-23T02:23:56.333424Z"}
+{"event":"dequeue","epoch_active":1,"msg_epoch":1,"action":"delivered","agent_id":"coder","queue_len":1,"msg_id":"msg-epoch1-001","timestamp":"2025-08-23T02:23:56.333519Z"}
+{"event":"dequeue","epoch_active":1,"msg_epoch":1,"action":"delivered","agent_id":"coder","queue_len":0,"msg_id":"msg-epoch1-002","timestamp":"2025-08-23T02:23:56.333535Z"}
+{"event":"enqueue","epoch_active":1,"msg_epoch":2,"action":"gated","agent_id":"runner","queue_len":1,"msg_id":"msg-epoch2-000","timestamp":"2025-08-23T02:23:56.333546Z"}
+{"event":"enqueue","epoch_active":1,"msg_epoch":2,"action":"gated","agent_id":"runner","queue_len":2,"msg_id":"msg-epoch2-001","timestamp":"2025-08-23T02:23:56.333559Z"}
+{"event":"dequeue","epoch_active":2,"msg_epoch":2,"action":"delivered","agent_id":"runner","queue_len":1,"msg_id":"msg-epoch2-000","timestamp":"2025-08-23T02:23:56.333588Z"}
+{"event":"dequeue","epoch_active":2,"msg_epoch":2,"action":"delivered","agent_id":"runner","queue_len":0,"msg_id":"msg-epoch2-001","timestamp":"2025-08-23T02:23:56.333595Z"}
+{"event":"enqueue","epoch_active":2,"msg_epoch":3,"action":"gated","agent_id":"critic","queue_len":1,"msg_id":"msg-epoch3-001","timestamp":"2025-08-23T02:23:56.333600Z"}
+{"event":"dequeue_attempt","epoch_active":2,"msg_epoch":3,"action":"blocked","agent_id":"critic","queue_len":1,"msg_id":"msg-epoch3-001","timestamp":"2025-08-23T02:23:56.333617Z","reason":"epoch_not_active"}
+{"event":"dequeue","epoch_active":3,"msg_epoch":3,"action":"delivered","agent_id":"critic","queue_len":0,"msg_id":"msg-epoch3-001","timestamp":"2025-08-23T02:23:56.333625Z"}
