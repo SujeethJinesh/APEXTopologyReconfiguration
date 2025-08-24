@@ -50,6 +50,36 @@ class FeatureSource:
         """
         if sender in self._current_step_counts:
             self._current_step_counts[sender] += 1
+    
+    def observe_from_router(self, sender_role: str) -> None:
+        """Helper for easy wiring in runtime router.
+        
+        Call this in A3's EpisodeRunner after each router.enqueue/dequeue
+        to track role activity for feature extraction.
+        
+        Example integration in router loop:
+            msg = router.dequeue()
+            feature_src.observe_from_router(msg.sender_role)
+        
+        Args:
+            sender_role: Role identifier from message
+        """
+        # Map common role variations to canonical names
+        role_map = {
+            "planner": "planner",
+            "plan": "planner",
+            "coder": "coder", 
+            "code": "coder",
+            "runner": "runner",
+            "run": "runner",
+            "critic": "critic",
+            "critique": "critic",
+            "review": "critic"
+        }
+        
+        canonical_role = role_map.get(sender_role.lower(), sender_role.lower())
+        if canonical_role in self._current_step_counts:
+            self.observe_msg(canonical_role)
 
     def step(self) -> None:
         """Commit current step counts to sliding window."""

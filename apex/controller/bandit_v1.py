@@ -34,10 +34,9 @@ class BanditSwitchV1:
         self.lambda_reg = lambda_reg
         self.n_actions = 4
 
-        # Initialize random state
-        if seed is not None:
-            random.seed(seed)
-            np.random.seed(seed)
+        # Initialize local RNG instances (avoids global state pollution)
+        self.rng_np = np.random.default_rng(seed) if seed is not None else np.random.default_rng()
+        self.rng_py = random.Random(seed) if seed is not None else random.Random()
 
         # Per-action model parameters
         # A_a = lambda*I initially, b_a = 0
@@ -98,9 +97,9 @@ class BanditSwitchV1:
             rewards[a] = np.dot(self.w[a], x_arr)
 
         # Epsilon-greedy selection
-        if random.random() < epsilon:
+        if self.rng_py.random() < epsilon:
             # Explore: uniform random
-            action = random.randint(0, self.n_actions - 1)
+            action = self.rng_py.randint(0, self.n_actions - 1)
         else:
             # Exploit: choose best
             action = int(np.argmax(rewards))
