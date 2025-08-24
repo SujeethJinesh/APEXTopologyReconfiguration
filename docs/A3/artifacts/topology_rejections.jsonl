@@ -1,0 +1,3 @@
+{"topology": "star", "event": "enqueue_rejected", "from_agent": "coder", "to_agent": "runner", "msg_id": "star_reject_001", "reason": "Star topology violation: coder \u2192 runner (non-planner must send to planner)"}
+{"topology": "chain", "event": "enqueue_rejected", "from_agent": "coder", "to_agent": "critic", "msg_id": "chain_reject_001", "reason": "Chain topology violation: coder \u2192 critic (not in allowed chain order)"}
+{"topology": "flat", "event": "enqueue_rejected", "from_agent": "planner", "to_agent": "BROADCAST", "msg_id": "flat_reject_001", "reason": "Flat topology fanout 4 exceeds limit 2"}

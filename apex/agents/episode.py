@@ -83,7 +83,9 @@ class EpisodeRunner:
                 if "summary" in msg.payload:
                     last_summary = msg.payload["summary"]
                 
-                # Route all returned messages
+                # Route all returned messages via Router (never directly delivered)
+                # This enforces "Router sovereignty" - all inter-agent messages must
+                # go through the Router for epoch stamping and topology validation
                 for ret_msg in returned_messages:
                     await self.router.route(ret_msg)
                     messages_routed += 1
