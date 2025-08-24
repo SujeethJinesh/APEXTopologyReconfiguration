@@ -39,6 +39,9 @@ line-length = 100
 [tool.ruff.lint]
 select = ["E", "F", "I"]
 
+[tool.ruff.lint.per-file-ignores]
+"tests/test_episode_id_unified.py" = ["I001", "F401", "F811"]
+
 [tool.isort]
 profile = "black"
 line_length = 100

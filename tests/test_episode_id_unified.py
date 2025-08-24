@@ -3,16 +3,21 @@ from __future__ import annotations
 from uuid import uuid4
 
 import pytest
-from test_helpers import create_agents
 
 from apex.agents.episode import EpisodeRunner
 from apex.runtime.router import Router
 from apex.runtime.switch import SwitchEngine
 from apex.runtime.topology_guard import TopologyGuard
+from test_helpers import create_agents
+
+# Import fixtures - these are "unused" but needed by pytest
+from test_helpers import stub_fs, stub_llm, stub_test, toy_repo  # noqa: F401
 
 
 @pytest.mark.asyncio
-async def test_unified_episode_id_all_topologies(toy_repo, stub_fs, stub_test, stub_llm):
+async def test_unified_episode_id_all_topologies(
+    toy_repo, stub_fs, stub_test, stub_llm
+):  # noqa: F811
     """Test that all messages in an episode share the same episode_id across all topologies."""
 
     for topology in ["star", "chain", "flat"]:
@@ -87,7 +92,7 @@ async def test_unified_episode_id_all_topologies(toy_repo, stub_fs, stub_test, s
 
 
 @pytest.mark.asyncio
-async def test_episode_id_failure_injection(toy_repo, stub_fs, stub_test, stub_llm):
+async def test_episode_id_failure_injection(toy_repo, stub_fs, stub_test, stub_llm):  # noqa: F811
     """Test that different episode_ids are detected as a failure."""
 
     # Create router with topology guard
