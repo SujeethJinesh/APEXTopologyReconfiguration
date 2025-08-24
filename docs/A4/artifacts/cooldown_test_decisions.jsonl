@@ -1,0 +1,5 @@
+{"step": 1, "topology": "star", "x": [1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0], "action": "star", "epsilon": 0.2, "bandit_ms": 0.028042, "switch": {"attempted": false, "committed": false, "epoch": 1}, "tick_ms": 0.035125}
+{"step": 2, "topology": "star", "x": [1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0], "action": "stay", "epsilon": 0.19997, "bandit_ms": 0.017541, "switch": {"attempted": false, "committed": false, "epoch": 1}, "tick_ms": 0.022709}
+{"step": 3, "topology": "star", "x": [1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0], "action": "stay", "epsilon": 0.19994, "bandit_ms": 0.013834, "switch": {"attempted": false, "committed": false, "epoch": 1}, "tick_ms": 0.018}
+{"step": 4, "topology": "star", "x": [1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0], "action": "stay", "epsilon": 0.19991, "bandit_ms": 0.015667, "switch": {"attempted": false, "committed": false, "epoch": 1}, "tick_ms": 0.020792}
+{"step": 5, "topology": "star", "x": [1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0], "action": "flat", "epsilon": 0.19988, "bandit_ms": 0.013292, "switch": {"attempted": true, "committed": true, "epoch": 2}, "topology_after": "flat", "tick_ms": 0.020833}
