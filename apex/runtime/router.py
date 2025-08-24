@@ -3,12 +3,16 @@ from __future__ import annotations
 import asyncio
 import time
 from dataclasses import replace
-from typing import Dict, Iterable, List, Optional, Set
+from typing import TYPE_CHECKING, Dict, Iterable, List, Optional, Set
 
 from apex.config.defaults import MAX_ATTEMPTS, MESSAGE_TTL_S, QUEUE_CAP_PER_AGENT
 
 from .errors import InvalidRecipientError, QueueFullError
 from .message import AgentID, Epoch, Message
+from .topology_guard import TopologyGuard
+
+if TYPE_CHECKING:
+    from .switch_api import ISwitchEngine
 
 
 class Router:
@@ -19,6 +23,9 @@ class Router:
       in which case they go to Q_next (epoch N+1).
     - Dequeue only serves the active epoch; N+1 is not served until COMMIT.
     - On ABORT, Q_next is appended behind Q_active (per recipient), preserving FIFO.
+
+    Note: Epoch stamping occurs at ingress in Router, not at agent message construction.
+    Router is the authoritative source for epoch assignment during route().
     """
 
     def __init__(
@@ -26,6 +33,8 @@ class Router:
         recipients: Iterable[str],
         queue_cap_per_agent: int = QUEUE_CAP_PER_AGENT,
         message_ttl_s: float = MESSAGE_TTL_S,
+        switch_engine: Optional["ISwitchEngine"] = None,
+        topology_guard: Optional[TopologyGuard] = None,
     ) -> None:
         self._recipients: Set[str] = set(recipients)
         if not self._recipients:
@@ -47,6 +56,10 @@ class Router:
         }
 
         self._lock = asyncio.Lock()
+
+        # Topology enforcement
+        self._switch_engine = switch_engine
+        self._topology_guard = topology_guard or TopologyGuard()
 
     # -------- Properties / Inspection --------
 
@@ -119,16 +132,37 @@ class Router:
         Behavior:
           - Raises InvalidRecipientError if recipient unknown.
           - Raises QueueFullError if the target queue is full.
+          - Raises TopologyViolationError if the message violates topology rules.
           - Returns True on successful enqueue (or on all fanout enqueues).
         """
+        # Get current topology for validation (read once per call)
+        topology = None
+        if self._switch_engine:
+            topology, _ = self._switch_engine.active()
+
         if msg.recipient == "BROADCAST":
             targets = [r for r in self._recipients if r != msg.sender]
+
+            # Validate broadcast for topology
+            if topology and self._topology_guard:
+                self._topology_guard.validate_broadcast(topology, msg.sender, len(targets))
+
+            # Validate each individual pair
+            if topology and self._topology_guard:
+                for target in targets:
+                    self._topology_guard.validate_pair(topology, msg.sender, AgentID(target))
+
             results = [await self._route_one(msg, r) for r in targets]
             return all(results)
         else:
             if msg.recipient not in self._recipients:
                 msg.drop_reason = "invalid_recipient"
                 raise InvalidRecipientError(msg.recipient)
+
+            # Validate the pair before routing
+            if topology and self._topology_guard:
+                self._topology_guard.validate_pair(topology, msg.sender, msg.recipient)
+
             return await self._route_one(msg, msg.recipient)
 
     async def _route_one(self, msg: Message, target: str) -> bool:

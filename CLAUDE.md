@@ -1,5 +1,14 @@
 # Claude Code Instructions for APEX Framework
 
+## CI/CD and Linting Requirements
+
+**CRITICAL:** Before submitting any PR or pushing code:
+1. Run `make lint` to check for linting issues
+2. Fix ALL linting issues - CI/CD will fail if any issues remain
+3. Use `ruff check apex tests --fix` for auto-fixable issues
+4. Use `black apex tests` to format code if needed
+5. Verify with `make lint` that all checks pass
+
 ## Review Response Guidelines
 
 When responding to code reviews, ALWAYS provide:
@@ -53,14 +62,23 @@ Create a `docs/M{N}/FINAL_EVIDENCE.md` file containing:
 | Chain enforcement | sdk_adapter.py#L256-264 | test_chain_enforcement#L* |
 ```
 
-### 3. Update Tracking
+### 3. Update Tracking & Version Control
 After EVERY task completion:
 1. Update `docs/M{N}/CHANGE_SUMMARY.md` with new files/changes
 2. Include permalinks to all modified files
 3. Update test counts and results
-4. Commit with clear message describing what was fixed
+4. **RUN LINTING** - Must pass before committing: `make lint` or `ruff check` + `black`
+5. **COMMIT AND PUSH CHANGES** with clear message describing what was fixed
+6. Use `git add -A`, `git commit -m "descriptive message"`, `git push origin branch-name`
+7. **UPDATE THE PR** with:
+   - Summary of changes
+   - Permalinks to latest commit (use HEAD SHA)
+   - Test results
+   - Evidence of lint passing
+8. Always commit after completing each milestone/feature/fix
 
 ### 4. Response Format
+ALWAYS include permalinks to relevant files in responses.
 When reviewer requests changes:
 
 ```markdown
@@ -84,6 +102,10 @@ When reviewer requests changes:
 3. **Router Sovereignty:** All messages go through `router.route()`
 4. **Epoch Consistency:** Use the epoch from same `switch.active()` call
 5. **Test Coverage:** Every claim needs a test with output
+6. **Linting:** Code must pass lint checks before commit
+7. **Version Control:** Commit and push after EVERY completed task/milestone
+8. **Permalinks:** Always include GitHub permalinks to relevant files in responses
+9. **PR Updates:** Update PR description with latest changes and permalinks
 
 ## Common Review Issues & Solutions
 
@@ -117,6 +139,39 @@ docs/
     FINAL_EVIDENCE.md     # Response to review
     final_response.md     # Additional evidence
     artifacts/            # Test outputs, logs
+```
+
+## Response Best Practices
+
+When completing any task or responding to requests:
+1. **Include permalinks** to all relevant files using format: `file_path:line_number`
+2. **Provide GitHub permalinks** for code changes after pushing
+3. **Use LATEST commit SHA** for permalinks (get with `git rev-parse HEAD`)
+4. **Reference specific line numbers** when discussing implementations
+5. **Link to test files** that prove functionality
+6. **Update PR description** after every push with:
+   - Latest permalinks
+   - Summary of what was implemented
+   - Test results
+   - Lint status
+
+Example permalink format after push:
+```
+https://github.com/USER/REPO/blob/COMMIT_SHA/path/to/file.py#L123-L456
+```
+
+### PR Update Template
+```markdown
+## Latest Changes (Commit: SHA)
+
+### Implementation
+- [Component]: [permalink]
+- Tests: [permalink]
+
+### Verification
+- Tests: ✅ X passing
+- Lint: ✅ Passing
+- Artifacts: [link]
 ```
 
 ---
