@@ -17,15 +17,15 @@ class CriticAgent(BaseAgent):
         payload = msg.payload
         failed = payload.get("failed", 0)
         passed = payload.get("passed", 0)
-        
+
         # Check topology to determine recipient
         topology, _ = self.switch.active()
-        
+
         if failed > 0:
             # Tests are failing, send feedback to Coder
             # Deterministic suggestion
             feedback = "Tests are still failing. Ensure the add function returns a + b, not a - b."
-            
+
             if topology == "star":
                 # In star, must go through planner
                 recipient = AgentID("planner")
@@ -36,7 +36,7 @@ class CriticAgent(BaseAgent):
             else:
                 # In flat, direct peer-to-peer is allowed
                 recipient = AgentID("coder")
-            
+
             return [
                 self._new_msg(
                     recipient=recipient,
@@ -62,7 +62,7 @@ class CriticAgent(BaseAgent):
             else:
                 # In flat, direct peer-to-peer is allowed
                 recipient = AgentID("summarizer")
-            
+
             return [
                 self._new_msg(
                     recipient=recipient,

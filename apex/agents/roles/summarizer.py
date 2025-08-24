@@ -13,7 +13,7 @@ class SummarizerAgent(BaseAgent):
         - From Critic: build summary and send back to Planner
         """
         payload = msg.payload
-        
+
         # Build summary JSON
         summary = {
             "tests_passed": payload.get("passed", 0),
@@ -22,7 +22,7 @@ class SummarizerAgent(BaseAgent):
             "coder_action": payload.get("coder_action"),
             "status": "success" if payload.get("failed", 0) == 0 else "failure",
         }
-        
+
         # Always send back to Planner (valid in all topologies)
         return [
             self._new_msg(

@@ -14,14 +14,14 @@ class CoderAgent(BaseAgent):
         - From Critic with feedback: apply fixes
         """
         payload = msg.payload
-        
+
         target_file = payload.get("target_file", "src/app.py")
-        
+
         try:
             # Read the target file
             content = await self.fs.read_file(target_file)
             content_str = content.decode("utf-8")
-            
+
             # Check if we need to fix the bug (deterministic patch)
             if "return a - b" in content_str:
                 # Apply the fix: change subtraction to addition
@@ -38,14 +38,14 @@ class CoderAgent(BaseAgent):
             else:
                 # Already fixed or different content
                 action = "no_changes_needed"
-            
+
         except Exception as e:
             # If file doesn't exist or other error, report it
             action = f"error: {str(e)}"
-        
+
         # Check topology to determine recipient
         topology, _ = self.switch.active()
-        
+
         if topology == "star":
             # In star, must go through planner
             recipient = AgentID("planner")
@@ -55,7 +55,7 @@ class CoderAgent(BaseAgent):
         else:
             # In flat, direct peer-to-peer is allowed
             recipient = AgentID("runner")
-        
+
         # Send to appropriate recipient based on topology
         return [
             self._new_msg(

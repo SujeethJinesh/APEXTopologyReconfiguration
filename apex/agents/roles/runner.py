@@ -19,18 +19,18 @@ class RunnerAgent(BaseAgent):
         # Discover tests if not already done
         if self.discovered_tests is None:
             self.discovered_tests = await self.test.discover()
-        
+
         # Run all tests with timeout
         test_results = await self.test.run(tests=None, timeout_s=60)
-        
+
         # Extract pass/fail counts
         passed = test_results.get("passed", 0)
         failed = test_results.get("failed", 0)
         failing_tests = test_results.get("failures", [])
-        
+
         # Check topology to determine recipient
         topology, _ = self.switch.active()
-        
+
         if topology == "star":
             # In star, must go through planner
             recipient = AgentID("planner")
@@ -40,7 +40,7 @@ class RunnerAgent(BaseAgent):
         else:
             # In flat, direct peer-to-peer is allowed
             recipient = AgentID("critic")
-        
+
         # Send results to appropriate recipient
         return [
             self._new_msg(

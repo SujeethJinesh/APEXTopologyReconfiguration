@@ -1,5 +1,14 @@
 # Claude Code Instructions for APEX Framework
 
+## CI/CD and Linting Requirements
+
+**CRITICAL:** Before submitting any PR or pushing code:
+1. Run `make lint` to check for linting issues
+2. Fix ALL linting issues - CI/CD will fail if any issues remain
+3. Use `ruff check apex tests --fix` for auto-fixable issues
+4. Use `black apex tests` to format code if needed
+5. Verify with `make lint` that all checks pass
+
 ## Review Response Guidelines
 
 When responding to code reviews, ALWAYS provide:

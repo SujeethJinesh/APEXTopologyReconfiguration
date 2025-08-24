@@ -37,7 +37,7 @@ class BaseAgent:
         """
         Process one message and return zero or more new messages.
         Messages returned are not auto-routed; the episode runner will route them.
-        
+
         Subclasses should override this method.
         """
         return []
@@ -45,9 +45,9 @@ class BaseAgent:
     def _new_msg(self, recipient: AgentID, payload: dict) -> Message:
         """
         Utility to create a new message with proper epoch stamping.
-        
+
         Uses switch.active()[1] since ingress_epoch() is not available.
-        
+
         Note: Router is authoritative for epoch stamping at ingress.
         The epoch set here is advisory only and will be overwritten
         by Router during route() to enforce epoch gating invariants.

@@ -20,13 +20,13 @@ class PlannerAgent(BaseAgent):
         """
         payload = msg.payload
         topology, _ = self.switch.active()
-        
+
         # Check if this is a kickoff or initial message
         if payload.get("action") == "kickoff" or self.test_run_count == 0:
             # Create a deterministic plan (no real LLM)
             plan = "Fix the bug in the add function: change subtraction to addition"
             self.test_run_count += 1
-            
+
             # Send plan to Coder
             return [
                 self._new_msg(
@@ -37,13 +37,13 @@ class PlannerAgent(BaseAgent):
                     },
                 )
             ]
-        
+
         # Handle summary from Summarizer
         if "summary" in payload:
             # Loop complete - could send another round or stop
             # For simplicity, we'll stop after one successful round
             return []
-        
+
         # In star topology, Planner acts as hub - route to next agent
         if topology == "star" and "next_agent" in payload:
             next_agent = payload.get("next_agent")
@@ -55,5 +55,5 @@ class PlannerAgent(BaseAgent):
                         payload=payload,
                     )
                 ]
-        
+
         return []

@@ -23,7 +23,7 @@ class Router:
       in which case they go to Q_next (epoch N+1).
     - Dequeue only serves the active epoch; N+1 is not served until COMMIT.
     - On ABORT, Q_next is appended behind Q_active (per recipient), preserving FIFO.
-    
+
     Note: Epoch stamping occurs at ingress in Router, not at agent message construction.
     Router is the authoritative source for epoch assignment during route().
     """
@@ -56,7 +56,7 @@ class Router:
         }
 
         self._lock = asyncio.Lock()
-        
+
         # Topology enforcement
         self._switch_engine = switch_engine
         self._topology_guard = topology_guard or TopologyGuard()
@@ -139,30 +139,30 @@ class Router:
         topology = None
         if self._switch_engine:
             topology, _ = self._switch_engine.active()
-        
+
         if msg.recipient == "BROADCAST":
             targets = [r for r in self._recipients if r != msg.sender]
-            
+
             # Validate broadcast for topology
             if topology and self._topology_guard:
                 self._topology_guard.validate_broadcast(topology, msg.sender, len(targets))
-            
+
             # Validate each individual pair
             if topology and self._topology_guard:
                 for target in targets:
                     self._topology_guard.validate_pair(topology, msg.sender, AgentID(target))
-            
+
             results = [await self._route_one(msg, r) for r in targets]
             return all(results)
         else:
             if msg.recipient not in self._recipients:
                 msg.drop_reason = "invalid_recipient"
                 raise InvalidRecipientError(msg.recipient)
-            
+
             # Validate the pair before routing
             if topology and self._topology_guard:
                 self._topology_guard.validate_pair(topology, msg.sender, msg.recipient)
-            
+
             return await self._route_one(msg, msg.recipient)
 
     async def _route_one(self, msg: Message, target: str) -> bool:

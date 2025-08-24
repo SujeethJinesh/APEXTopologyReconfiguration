@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import pytest
+from stubs import StubFS, StubLLM, StubTest
 
 from apex.agents.base import BaseAgent
 from apex.agents.roles import (
@@ -18,8 +19,6 @@ from apex.runtime.message import AgentID, Message
 from apex.runtime.router import Router
 from apex.runtime.switch import SwitchEngine
 
-from stubs import StubFS, StubLLM, StubTest
-
 
 @pytest.fixture
 def toy_repo(tmp_path):
@@ -28,20 +27,24 @@ def toy_repo(tmp_path):
     src_dir = tmp_path / "src"
     src_dir.mkdir()
     app_file = src_dir / "app.py"
-    app_file.write_text("""def add(a, b):
+    app_file.write_text(
+        """def add(a, b):
     return a - b  # bug; coder should patch to a + b
-""")
-    
+"""
+    )
+
     # Create tests/test_app.py
     tests_dir = tmp_path / "tests"
     tests_dir.mkdir()
     test_file = tests_dir / "test_app.py"
-    test_file.write_text("""from src.app import add
+    test_file.write_text(
+        """from src.app import add
 
 def test_add():
     assert add(2, 3) == 5
-""")
-    
+"""
+    )
+
     return tmp_path
 
 
@@ -73,7 +76,7 @@ def create_agents(
 ) -> Dict[AgentID, BaseAgent]:
     """Create all role agents with unified episode_id."""
     agents = {}
-    
+
     # Create Planner
     agents[AgentID("planner")] = PlannerAgent(
         agent_id=AgentID("planner"),
@@ -84,7 +87,7 @@ def create_agents(
         episode_id=episode_id,  # Pass shared episode_id
         llm=llm,
     )
-    
+
     # Create Coder
     agents[AgentID("coder")] = CoderAgent(
         agent_id=AgentID("coder"),
@@ -95,7 +98,7 @@ def create_agents(
         episode_id=episode_id,  # Pass shared episode_id
         llm=llm,
     )
-    
+
     # Create Runner
     agents[AgentID("runner")] = RunnerAgent(
         agent_id=AgentID("runner"),
@@ -106,7 +109,7 @@ def create_agents(
         episode_id=episode_id,  # Pass shared episode_id
         llm=llm,
     )
-    
+
     # Create Critic
     agents[AgentID("critic")] = CriticAgent(
         agent_id=AgentID("critic"),
@@ -117,7 +120,7 @@ def create_agents(
         episode_id=episode_id,  # Pass shared episode_id
         llm=llm,
     )
-    
+
     # Create Summarizer
     agents[AgentID("summarizer")] = SummarizerAgent(
         agent_id=AgentID("summarizer"),
@@ -128,17 +131,17 @@ def create_agents(
         episode_id=episode_id,  # Pass shared episode_id
         llm=llm,
     )
-    
+
     return agents
 
 
 class TraceCollector:
     """Collects trace events for JSONL artifact generation."""
-    
+
     def __init__(self):
         self.events: List[Dict[str, Any]] = []
         self.step = 0
-    
+
     def add_event(self, event_type: str, **kwargs):
         """Add an event to the trace."""
         self.step += 1
@@ -148,7 +151,7 @@ class TraceCollector:
             **kwargs,
         }
         self.events.append(event)
-    
+
     def save_jsonl(self, path: Path):
         """Save events as JSONL to the given path."""
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -159,15 +162,15 @@ class TraceCollector:
 
 class TracingRouter(Router):
     """Router wrapper that traces all events with clear success/rejection status."""
-    
+
     def __init__(self, *args, trace_collector: TraceCollector, **kwargs):
         super().__init__(*args, **kwargs)
         self.trace = trace_collector
-    
+
     async def route(self, msg: Message) -> bool:
         """Route and trace the message with success/rejection status."""
         topology, epoch = self._switch_engine.active() if self._switch_engine else ("unknown", 0)
-        
+
         # Log attempt
         self.trace.add_event(
             "enqueue_attempt",
@@ -177,7 +180,7 @@ class TracingRouter(Router):
             to_agent=str(msg.recipient),
             msg_id=msg.msg_id,
         )
-        
+
         # Try to route
         try:
             result = await super().route(msg)
@@ -203,7 +206,7 @@ class TracingRouter(Router):
                 reason=str(e),
             )
             raise
-    
+
     async def dequeue(self, agent_id: AgentID) -> Optional[Message]:
         """Dequeue and trace if a message is returned."""
         msg = await super().dequeue(agent_id)
