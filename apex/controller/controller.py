@@ -61,8 +61,9 @@ class APEXController:
             Decision record with action, epsilon, latency, switch result
         """
         import time
+
         tick_start = time.monotonic_ns()
-        
+
         self.step_count += 1
 
         # Get current topology from switch - handle both tuple and dict formats
@@ -74,7 +75,7 @@ class APEXController:
             current_topo = active["topology"]
             epoch = active["epoch"]
             switched_at = active.get("switched_at", 0)
-        
+
         steps_since = self.step_count - switched_at
 
         # Update feature source with current state
