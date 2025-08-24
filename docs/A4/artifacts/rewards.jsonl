@@ -1,0 +1,25 @@
+{"step": 1, "delta_pass_rate": 0.0, "delta_tokens": 50, "phase_advance": false, "switch_committed": false, "r_step": -0.005}
+{"step": 2, "delta_pass_rate": 0.0, "delta_tokens": 50, "phase_advance": false, "switch_committed": false, "r_step": -0.005}
+{"step": 3, "delta_pass_rate": 0.0, "delta_tokens": 50, "phase_advance": false, "switch_committed": false, "r_step": -0.005}
+{"step": 4, "delta_pass_rate": 0.0, "delta_tokens": 50, "phase_advance": true, "switch_committed": false, "r_step": 0.295}
+{"step": 5, "delta_pass_rate": 0.1, "delta_tokens": 100, "phase_advance": false, "switch_committed": false, "r_step": 0.05999999999999999}
+{"step": 6, "delta_pass_rate": 0.1, "delta_tokens": 200, "phase_advance": false, "switch_committed": false, "r_step": 0.04999999999999999}
+{"step": 7, "delta_pass_rate": 0.09999999999999998, "delta_tokens": 200, "phase_advance": false, "switch_committed": false, "r_step": 0.049999999999999975}
+{"step": 8, "delta_pass_rate": 0.0, "delta_tokens": 200, "phase_advance": false, "switch_committed": true, "r_step": -0.07}
+{"step": 9, "delta_pass_rate": 0.10000000000000003, "delta_tokens": 200, "phase_advance": false, "switch_committed": false, "r_step": 0.05000000000000002}
+{"step": 10, "delta_pass_rate": 0.09999999999999998, "delta_tokens": 300, "phase_advance": false, "switch_committed": false, "r_step": 0.03999999999999998}
+{"step": 11, "delta_pass_rate": 0.0, "delta_tokens": 100, "phase_advance": true, "switch_committed": false, "r_step": 0.29}
+{"step": 12, "delta_pass_rate": 0.09999999999999998, "delta_tokens": 100, "phase_advance": false, "switch_committed": false, "r_step": 0.05999999999999998}
+{"step": 13, "delta_pass_rate": 0.09999999999999998, "delta_tokens": 150, "phase_advance": false, "switch_committed": false, "r_step": 0.05499999999999998}
+{"step": 14, "delta_pass_rate": 0.050000000000000044, "delta_tokens": 150, "phase_advance": false, "switch_committed": false, "r_step": 0.02000000000000003}
+{"step": 15, "delta_pass_rate": 0.050000000000000044, "delta_tokens": 200, "phase_advance": false, "switch_committed": true, "r_step": -0.034999999999999976}
+{"step": 16, "delta_pass_rate": 0.04999999999999993, "delta_tokens": 200, "phase_advance": false, "switch_committed": false, "r_step": 0.014999999999999947}
+{"step": 17, "delta_pass_rate": 0.0, "delta_tokens": 100, "phase_advance": true, "switch_committed": false, "r_step": 0.29}
+{"step": 18, "delta_pass_rate": 0.0, "delta_tokens": 100, "phase_advance": false, "switch_committed": false, "r_step": -0.01}
+{"step": 19, "delta_pass_rate": 0.020000000000000018, "delta_tokens": 150, "phase_advance": false, "switch_committed": false, "r_step": -0.0009999999999999905}
+{"step": 20, "delta_pass_rate": 0.0, "delta_tokens": 150, "phase_advance": false, "switch_committed": false, "r_step": -0.015000000000000001}
+{"step": 21, "delta_pass_rate": 0.030000000000000027, "delta_tokens": 200, "phase_advance": false, "switch_committed": false, "r_step": 0.0010000000000000182}
+{"step": 22, "delta_pass_rate": 0.020000000000000018, "delta_tokens": 200, "phase_advance": true, "switch_committed": false, "r_step": 0.294}
+{"step": 23, "delta_pass_rate": 0.029999999999999916, "delta_tokens": 200, "phase_advance": false, "switch_committed": false, "r_step": 0.0009999999999999384}
+{"step": 24, "delta_pass_rate": 0.050000000000000044, "delta_tokens": 100, "phase_advance": true, "switch_committed": false, "r_step": 0.325}
+{"step": 25, "delta_pass_rate": 0, "delta_tokens": 0, "phase_advance": false, "switch_committed": false, "r_step": 1.0, "terminal": true}

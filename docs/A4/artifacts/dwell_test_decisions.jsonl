@@ -1,0 +1,4 @@
+{"step": 1, "topology": "star", "x": [1.0, 0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 1.0], "action": "stay", "epsilon": 0.2, "ms": 0.074167, "switch": {"attempted": false, "committed": false, "epoch": 1}}
+{"step": 2, "topology": "star", "x": [1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0], "action": "chain", "epsilon": 0.19997, "ms": 0.036667, "switch": {"attempted": true, "committed": false, "epoch": 1, "error": "Cooldown active: 2 < 4"}}
+{"step": 3, "topology": "star", "x": [1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0], "action": "stay", "epsilon": 0.19994, "ms": 0.0275, "switch": {"attempted": false, "committed": false, "epoch": 1}}
+{"step": 4, "topology": "star", "x": [1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0], "action": "stay", "epsilon": 0.19991, "ms": 0.023083, "switch": {"attempted": false, "committed": false, "epoch": 1}}
