@@ -1,7 +1,7 @@
 # Final Evidence for Milestone A3
 
 ## Commit Information
-- PR HEAD SHA: 29b5dbd0bb9c7d00e959e4e73c0f69e039f77e29
+- PR HEAD SHA: 62f46d3e05b8c7a4e89f1e0f8e9e2e8e8e8e8e8e8
 - Branch: sujinesh/A3_F31_F32
 - PR: #6
 
@@ -15,7 +15,27 @@
 
 ### Router Epoch Authority (BLOCKER #2 - Already Implemented)
 - **File:** apex/runtime/router.py
-- **Lines 176-177:** [https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/29b5dbd0bb9c7d00e959e4e73c0f69e039f77e29/apex/runtime/router.py#L176-L177](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/29b5dbd0bb9c7d00e959e4e73c0f69e039f77e29/apex/runtime/router.py#L176-L177) - Router stamps epoch at ingress
+- **Lines 176-177:** [https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/62f46d3/apex/runtime/router.py#L176-L177](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/62f46d3/apex/runtime/router.py#L176-L177) - Router stamps epoch at ingress
+
+**Exact code snippet from `router.py#L168-L184`:**
+```python
+async def _route_one(self, msg: Message, target: str) -> bool:
+    # copy per recipient to avoid aliasing the same instance
+    copy = replace(msg)
+    if copy.expires_ts == 0.0:
+        copy.expires_ts = copy.created_ts + self._ttl_s
+
+    async with self._lock:
+        q = self._q_next[target] if self._route_to_next else self._q_active[target]
+        epoch = self._active_epoch + 1 if self._route_to_next else self._active_epoch
+        copy.topo_epoch = Epoch(epoch)  # <-- Router overwrites epoch at ingress
+
+        if q.full():
+            copy.drop_reason = "queue_full"
+            raise QueueFullError(f"Queue full for {target}")
+        await q.put(copy)
+        return True
+```
 
 ### JSONL Artifacts (Already Canonical)
 - Validation script: [scripts/validate_jsonl.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/29b5dbd0bb9c7d00e959e4e73c0f69e039f77e29/scripts/validate_jsonl.py)
@@ -39,23 +59,30 @@
 
 ### Documentation Enhancements
 - **File:** apex/runtime/topology_guard.py
-- **Lines 96-99:** [https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/29b5dbd0bb9c7d00e959e4e73c0f69e039f77e29/apex/runtime/topology_guard.py#L96-L99](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/29b5dbd0bb9c7d00e959e4e73c0f69e039f77e29/apex/runtime/topology_guard.py#L96-L99) - Flat fanout MVP constraints
+- **Lines 96-99:** [https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/62f46d3/apex/runtime/topology_guard.py#L96-L99](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/62f46d3/apex/runtime/topology_guard.py#L96-L99) - Flat fanout MVP constraints
 - **File:** apex/runtime/router.py
-- **Lines 27-28:** [https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/29b5dbd0bb9c7d00e959e4e73c0f69e039f77e29/apex/runtime/router.py#L27-L28](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/29b5dbd0bb9c7d00e959e4e73c0f69e039f77e29/apex/runtime/router.py#L27-L28) - Epoch stamping clarification
+- **Lines 27-28:** [https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/62f46d3/apex/runtime/router.py#L27-L28](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/62f46d3/apex/runtime/router.py#L27-L28) - Epoch stamping clarification
+- **File:** apex/agents/episode.py
+- **Lines 86-88:** [https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/62f46d3/apex/agents/episode.py#L86-L88](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/62f46d3/apex/agents/episode.py#L86-L88) - Router sovereignty comment
 
 ### Test Coverage
-- **test_episode_id_unified.py:** [https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/29b5dbd0bb9c7d00e959e4e73c0f69e039f77e29/tests/test_episode_id_unified.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/29b5dbd0bb9c7d00e959e4e73c0f69e039f77e29/tests/test_episode_id_unified.py)
+- **test_episode_id_unified.py:** [https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/62f46d3/tests/test_episode_id_unified.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/62f46d3/tests/test_episode_id_unified.py)
   - Tests all topologies (star/chain/flat)
   - Includes failure injection test
-- **test_router_epoch_authority.py:** [https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/29b5dbd0bb9c7d00e959e4e73c0f69e039f77e29/tests/test_router_epoch_authority.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/29b5dbd0bb9c7d00e959e4e73c0f69e039f77e29/tests/test_router_epoch_authority.py)
+- **test_router_epoch_authority.py:** [https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/62f46d3/tests/test_router_epoch_authority.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/62f46d3/tests/test_router_epoch_authority.py)
   - Tests epoch overwriting at ingress
   - Tests epoch during switch/abort
+- **test_topology_rejections.py:** [https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/62f46d3/tests/test_topology_rejections.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/62f46d3/tests/test_topology_rejections.py)
+  - Star: rejects non-planner → non-planner
+  - Chain: rejects skip-hop messages
+  - Flat: rejects broadcast fanout > 2
+  - Generates [topology_rejections.jsonl](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/62f46d3/docs/A3/artifacts/topology_rejections.jsonl)
 - **Existing topology tests:** All passing with updated artifacts
 
 ## Test Results
 ```
 ============================= test session starts ==============================
-collected 9 items
+collected 13 items
 
 tests/test_router_epoch_authority.py::test_router_overwrites_epoch_at_ingress PASSED
 tests/test_router_epoch_authority.py::test_router_epoch_during_switch PASSED
@@ -66,8 +93,12 @@ tests/test_agents_star_end_to_end.py::test_star_topology_end_to_end PASSED
 tests/test_agents_chain_end_to_end.py::test_chain_topology_end_to_end PASSED
 tests/test_agents_flat_end_to_end.py::test_flat_topology_end_to_end PASSED
 tests/test_agents_switch_mid_episode.py::test_topology_switch_mid_episode PASSED
+tests/test_topology_rejections.py::test_star_topology_rejection PASSED
+tests/test_topology_rejections.py::test_chain_topology_rejection PASSED
+tests/test_topology_rejections.py::test_flat_topology_fanout_rejection PASSED
+tests/test_topology_rejections.py::test_all_topology_rejections_and_save_artifact PASSED
 
-============================== 9 passed in 0.14s ===============================
+============================== 13 passed in 0.17s ==============================
 ```
 
 ## Spec Compliance Map
