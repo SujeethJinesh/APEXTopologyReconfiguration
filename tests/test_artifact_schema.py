@@ -23,7 +23,8 @@ def test_controller_decisions_schema():
         assert "x" in obj, f"Line {i}: missing 'x' (feature vector)"
         assert "action" in obj, f"Line {i}: missing 'action'"
         assert "epsilon" in obj, f"Line {i}: missing 'epsilon'"
-        assert "ms" in obj, f"Line {i}: missing 'ms'"
+        assert "bandit_ms" in obj, f"Line {i}: missing 'bandit_ms'"
+        assert "tick_ms" in obj, f"Line {i}: missing 'tick_ms'"
         assert "switch" in obj, f"Line {i}: missing 'switch'"
         
         # Type checks
@@ -33,7 +34,8 @@ def test_controller_decisions_schema():
         assert len(obj["x"]) == 8, f"Line {i}: x must have 8 features"
         assert obj["action"] in ["stay", "star", "chain", "flat"], f"Line {i}: invalid action"
         assert isinstance(obj["epsilon"], (float, int)), f"Line {i}: epsilon must be numeric"
-        assert isinstance(obj["ms"], (float, int)), f"Line {i}: ms must be numeric"
+        assert isinstance(obj["bandit_ms"], (float, int)), f"Line {i}: bandit_ms must be numeric"
+        assert isinstance(obj["tick_ms"], (float, int)), f"Line {i}: tick_ms must be numeric"
         
         # Switch sub-object
         switch = obj["switch"]

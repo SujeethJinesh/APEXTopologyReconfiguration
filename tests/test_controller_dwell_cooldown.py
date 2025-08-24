@@ -17,8 +17,8 @@ class StubSwitchEngine:
         self.switched_at = 0
 
     def active(self):
-        """Get active topology."""
-        return {"topology": self.topology, "epoch": self.epoch, "switched_at": self.switched_at}
+        """Get active topology - returns tuple per ISwitchEngine spec."""
+        return (self.topology, self.epoch)  # Per vMVP-1 spec: tuple[str, Epoch]
 
     async def switch_to(self, topology: str):
         """Switch topology (called by coordinator)."""

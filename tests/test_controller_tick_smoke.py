@@ -19,8 +19,8 @@ class MockSwitchEngine:
         self.switch_history = []
 
     def active(self):
-        """Get active topology state."""
-        return {"topology": self.topology, "epoch": self.epoch, "switched_at": self.switched_at}
+        """Get active topology state - returns tuple per ISwitchEngine spec."""
+        return (self.topology, self.epoch)  # Per vMVP-1 spec: tuple[str, Epoch]
 
     async def commit_switch(self, target: str):
         """Commit a topology switch."""
@@ -141,13 +141,13 @@ async def test_controller_100_ticks():
             print(
                 f"Tick {tick + 1}: topo={decision['topology']}, "
                 f"action={decision['action']}, eps={decision['epsilon']:.3f}, "
-                f"ms={decision['ms']:.3f}, reward={reward:.3f}"
+                f"bandit_ms={decision['bandit_ms']:.3f}, reward={reward:.3f}"
             )
         else:
             print(
                 f"Tick {tick + 1}: topo={decision['topology']}, "
                 f"action={decision['action']}, eps={decision['epsilon']:.3f}, "
-                f"ms={decision['ms']:.3f}"
+                f"bandit_ms={decision['bandit_ms']:.3f}"
             )
 
         states.append(state)
@@ -160,8 +160,10 @@ async def test_controller_100_ticks():
         assert decision["action"] in ["stay", "star", "chain", "flat"]
         assert "epsilon" in decision
         assert 0.05 <= decision["epsilon"] <= 0.20
-        assert "ms" in decision
-        assert decision["ms"] >= 0
+        assert "bandit_ms" in decision
+        assert decision["bandit_ms"] >= 0
+        assert "tick_ms" in decision
+        assert decision["tick_ms"] >= 0
         assert "switch" in decision
         assert "attempted" in decision["switch"]
         assert "committed" in decision["switch"]
@@ -183,7 +185,7 @@ async def test_controller_100_ticks():
         print(f"  Step {s['step']}: {s['topology']} -> {s.get('topology_after', '?')}")
 
     # Check latency is reasonable
-    latencies = [d["ms"] for d in decisions]
+    latencies = [d["bandit_ms"] for d in decisions]
     avg_latency = sum(latencies) / len(latencies)
     max_latency = max(latencies)
     print(f"\nLatency stats: avg={avg_latency:.3f}ms, max={max_latency:.3f}ms")

@@ -60,12 +60,22 @@ class APEXController:
         Returns:
             Decision record with action, epsilon, latency, switch result
         """
+        import time
+        tick_start = time.monotonic_ns()
+        
         self.step_count += 1
 
-        # Get current topology from switch
+        # Get current topology from switch - handle both tuple and dict formats
         active = self.switch.active()
-        current_topo = active["topology"]
-        steps_since = self.step_count - active.get("switched_at", 0)
+        if isinstance(active, tuple):  # (topology, epoch) per ISwitchEngine spec
+            current_topo, epoch = active
+            switched_at = getattr(self.switch, "switched_at", 0)
+        else:  # dict-compat: {"topology","epoch","switched_at"?}
+            current_topo = active["topology"]
+            epoch = active["epoch"]
+            switched_at = active.get("switched_at", 0)
+        
+        steps_since = self.step_count - switched_at
 
         # Update feature source with current state
         self.feature_src.set_topology(current_topo, steps_since)
@@ -85,8 +95,8 @@ class APEXController:
             "x": x,
             "action": action_name,
             "epsilon": decision["epsilon"],
-            "ms": decision["ms"],
-            "switch": {"attempted": False, "committed": False, "epoch": active["epoch"]},
+            "bandit_ms": decision["ms"],  # Renamed from "ms"
+            "switch": {"attempted": False, "committed": False, "epoch": epoch},
         }
 
         # Handle switch request if action != stay
@@ -98,11 +108,15 @@ class APEXController:
                 result = await self.coordinator.request_switch(action_name)
                 if result and result.get("committed"):
                     record["switch"]["committed"] = True
-                    record["switch"]["epoch"] = result.get("epoch", active["epoch"] + 1)
+                    record["switch"]["epoch"] = result.get("epoch", epoch + 1)
                     record["topology_after"] = action_name
             except Exception as e:
                 # Switch denied (likely due to dwell/cooldown)
                 record["switch"]["error"] = str(e)
+
+        # Measure full tick latency
+        tick_end = time.monotonic_ns()
+        record["tick_ms"] = (tick_end - tick_start) / 1_000_000
 
         # Log decision
         self.decision_log.append(record)
