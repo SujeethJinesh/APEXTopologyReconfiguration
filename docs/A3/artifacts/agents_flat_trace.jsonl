@@ -1,40 +1,40 @@
-{"step": 1, "event": "enqueue_attempt", "epoch": 1, "topology": "flat", "from_agent": "system", "to_agent": "planner", "msg_id": "00370b3cd7324114a9e3c2c8fa1d744c"}
-{"step": 2, "event": "enqueue_success", "epoch": 1, "topology": "flat", "from_agent": "system", "to_agent": "planner", "msg_id": "00370b3cd7324114a9e3c2c8fa1d744c"}
-{"step": 3, "event": "dequeue", "epoch": 1, "topology": "flat", "agent": "planner", "msg_id": "00370b3cd7324114a9e3c2c8fa1d744c", "from_agent": "system", "to_agent": "planner"}
+{"step": 1, "event": "enqueue_attempt", "epoch": 1, "topology": "flat", "from_agent": "system", "to_agent": "planner", "msg_id": "f54bd718e6fe4720955bd5ba99ad7a82"}
+{"step": 2, "event": "enqueue_success", "epoch": 1, "topology": "flat", "from_agent": "system", "to_agent": "planner", "msg_id": "f54bd718e6fe4720955bd5ba99ad7a82"}
+{"step": 3, "event": "dequeue", "epoch": 1, "topology": "flat", "agent": "planner", "msg_id": "f54bd718e6fe4720955bd5ba99ad7a82", "from_agent": "system", "to_agent": "planner"}
 {"step": 4, "event": "handle", "epoch": 1, "topology": "flat", "agent": "planner", "action": "kickoff"}
-{"step": 5, "event": "enqueue_attempt", "epoch": 1, "topology": "flat", "from_agent": "planner", "to_agent": "coder", "msg_id": "b6fd98c62a88489583dc203bfe185f71"}
-{"step": 6, "event": "enqueue_success", "epoch": 1, "topology": "flat", "from_agent": "planner", "to_agent": "coder", "msg_id": "b6fd98c62a88489583dc203bfe185f71"}
-{"step": 7, "event": "dequeue", "epoch": 1, "topology": "flat", "agent": "coder", "msg_id": "b6fd98c62a88489583dc203bfe185f71", "from_agent": "planner", "to_agent": "coder"}
+{"step": 5, "event": "enqueue_attempt", "epoch": 1, "topology": "flat", "from_agent": "planner", "to_agent": "coder", "msg_id": "3b950cdd5fd9450680e08eb13dfb964f"}
+{"step": 6, "event": "enqueue_success", "epoch": 1, "topology": "flat", "from_agent": "planner", "to_agent": "coder", "msg_id": "3b950cdd5fd9450680e08eb13dfb964f"}
+{"step": 7, "event": "dequeue", "epoch": 1, "topology": "flat", "agent": "coder", "msg_id": "3b950cdd5fd9450680e08eb13dfb964f", "from_agent": "planner", "to_agent": "coder"}
 {"step": 8, "event": "handle", "epoch": 1, "topology": "flat", "agent": "coder", "action": "process"}
-{"step": 9, "event": "enqueue_attempt", "epoch": 1, "topology": "flat", "from_agent": "coder", "to_agent": "runner", "msg_id": "bd661510786148c898d8fb99e7b62c4e"}
-{"step": 10, "event": "enqueue_success", "epoch": 1, "topology": "flat", "from_agent": "coder", "to_agent": "runner", "msg_id": "bd661510786148c898d8fb99e7b62c4e"}
-{"step": 11, "event": "dequeue", "epoch": 1, "topology": "flat", "agent": "runner", "msg_id": "bd661510786148c898d8fb99e7b62c4e", "from_agent": "coder", "to_agent": "runner"}
+{"step": 9, "event": "enqueue_attempt", "epoch": 1, "topology": "flat", "from_agent": "coder", "to_agent": "runner", "msg_id": "b2f92278312b4d3b865507f9d639cc21"}
+{"step": 10, "event": "enqueue_success", "epoch": 1, "topology": "flat", "from_agent": "coder", "to_agent": "runner", "msg_id": "b2f92278312b4d3b865507f9d639cc21"}
+{"step": 11, "event": "dequeue", "epoch": 1, "topology": "flat", "agent": "runner", "msg_id": "b2f92278312b4d3b865507f9d639cc21", "from_agent": "coder", "to_agent": "runner"}
 {"step": 12, "event": "handle", "epoch": 1, "topology": "flat", "agent": "runner", "action": "run_tests"}
-{"step": 13, "event": "enqueue_attempt", "epoch": 1, "topology": "flat", "from_agent": "runner", "to_agent": "critic", "msg_id": "0701880dd6da44edb782f2179b718fd1"}
-{"step": 14, "event": "enqueue_success", "epoch": 1, "topology": "flat", "from_agent": "runner", "to_agent": "critic", "msg_id": "0701880dd6da44edb782f2179b718fd1"}
-{"step": 15, "event": "dequeue", "epoch": 1, "topology": "flat", "agent": "critic", "msg_id": "0701880dd6da44edb782f2179b718fd1", "from_agent": "runner", "to_agent": "critic"}
+{"step": 13, "event": "enqueue_attempt", "epoch": 1, "topology": "flat", "from_agent": "runner", "to_agent": "critic", "msg_id": "952377e460d54abfa2b112a65e803383"}
+{"step": 14, "event": "enqueue_success", "epoch": 1, "topology": "flat", "from_agent": "runner", "to_agent": "critic", "msg_id": "952377e460d54abfa2b112a65e803383"}
+{"step": 15, "event": "dequeue", "epoch": 1, "topology": "flat", "agent": "critic", "msg_id": "952377e460d54abfa2b112a65e803383", "from_agent": "runner", "to_agent": "critic"}
 {"step": 16, "event": "handle", "epoch": 1, "topology": "flat", "agent": "critic", "action": "process"}
-{"step": 17, "event": "enqueue_attempt", "epoch": 1, "topology": "flat", "from_agent": "critic", "to_agent": "summarizer", "msg_id": "cfd0c9c829c94e228fd7c4809d794205"}
-{"step": 18, "event": "enqueue_success", "epoch": 1, "topology": "flat", "from_agent": "critic", "to_agent": "summarizer", "msg_id": "cfd0c9c829c94e228fd7c4809d794205"}
-{"step": 19, "event": "dequeue", "epoch": 1, "topology": "flat", "agent": "summarizer", "msg_id": "cfd0c9c829c94e228fd7c4809d794205", "from_agent": "critic", "to_agent": "summarizer"}
+{"step": 17, "event": "enqueue_attempt", "epoch": 1, "topology": "flat", "from_agent": "critic", "to_agent": "summarizer", "msg_id": "147a4e1081ba4a2380d1fd6f2aa8ce47"}
+{"step": 18, "event": "enqueue_success", "epoch": 1, "topology": "flat", "from_agent": "critic", "to_agent": "summarizer", "msg_id": "147a4e1081ba4a2380d1fd6f2aa8ce47"}
+{"step": 19, "event": "dequeue", "epoch": 1, "topology": "flat", "agent": "summarizer", "msg_id": "147a4e1081ba4a2380d1fd6f2aa8ce47", "from_agent": "critic", "to_agent": "summarizer"}
 {"step": 20, "event": "handle", "epoch": 1, "topology": "flat", "agent": "summarizer", "action": "process"}
-{"step": 21, "event": "enqueue_attempt", "epoch": 1, "topology": "flat", "from_agent": "summarizer", "to_agent": "planner", "msg_id": "0c1551e3d12e491193abbaff354a4f20"}
-{"step": 22, "event": "enqueue_success", "epoch": 1, "topology": "flat", "from_agent": "summarizer", "to_agent": "planner", "msg_id": "0c1551e3d12e491193abbaff354a4f20"}
-{"step": 23, "event": "dequeue", "epoch": 1, "topology": "flat", "agent": "planner", "msg_id": "0c1551e3d12e491193abbaff354a4f20", "from_agent": "summarizer", "to_agent": "planner"}
+{"step": 21, "event": "enqueue_attempt", "epoch": 1, "topology": "flat", "from_agent": "summarizer", "to_agent": "planner", "msg_id": "216ebeecd7ff4b388ef7b95319d65309"}
+{"step": 22, "event": "enqueue_success", "epoch": 1, "topology": "flat", "from_agent": "summarizer", "to_agent": "planner", "msg_id": "216ebeecd7ff4b388ef7b95319d65309"}
+{"step": 23, "event": "dequeue", "epoch": 1, "topology": "flat", "agent": "planner", "msg_id": "216ebeecd7ff4b388ef7b95319d65309", "from_agent": "summarizer", "to_agent": "planner"}
 {"step": 24, "event": "handle", "epoch": 1, "topology": "flat", "agent": "planner", "action": "process"}
-{"step": 25, "event": "enqueue_attempt", "epoch": 1, "topology": "flat", "from_agent": "coder", "to_agent": "runner", "msg_id": "e800ebc3086a46beb55a6586f9ef2251"}
-{"step": 26, "event": "enqueue_success", "epoch": 1, "topology": "flat", "from_agent": "coder", "to_agent": "runner", "msg_id": "e800ebc3086a46beb55a6586f9ef2251"}
-{"step": 27, "event": "enqueue_attempt", "epoch": 1, "topology": "flat", "from_agent": "runner", "to_agent": "critic", "msg_id": "401aba2972c74dbbb6936281e75ca82f"}
-{"step": 28, "event": "enqueue_success", "epoch": 1, "topology": "flat", "from_agent": "runner", "to_agent": "critic", "msg_id": "401aba2972c74dbbb6936281e75ca82f"}
-{"step": 29, "event": "enqueue_attempt", "epoch": 1, "topology": "flat", "from_agent": "critic", "to_agent": "coder", "msg_id": "42fed1b1a475423db9c24ea65f766b38"}
-{"step": 30, "event": "enqueue_success", "epoch": 1, "topology": "flat", "from_agent": "critic", "to_agent": "coder", "msg_id": "42fed1b1a475423db9c24ea65f766b38"}
-{"step": 31, "event": "enqueue_attempt", "epoch": 1, "topology": "flat", "from_agent": "planner", "to_agent": "summarizer", "msg_id": "98e2de974c854fc0973abfe7c1d001e7"}
-{"step": 32, "event": "enqueue_success", "epoch": 1, "topology": "flat", "from_agent": "planner", "to_agent": "summarizer", "msg_id": "98e2de974c854fc0973abfe7c1d001e7"}
-{"step": 33, "event": "enqueue_attempt", "epoch": 1, "topology": "flat", "from_agent": "multicast_test", "to_agent": "coder", "msg_id": "a82d21f51e304bfe8736de991223936d"}
-{"step": 34, "event": "enqueue_success", "epoch": 1, "topology": "flat", "from_agent": "multicast_test", "to_agent": "coder", "msg_id": "a82d21f51e304bfe8736de991223936d"}
-{"step": 35, "event": "enqueue_attempt", "epoch": 1, "topology": "flat", "from_agent": "multicast_test", "to_agent": "runner", "msg_id": "89886e90c80c4084ac09fd6835634f87"}
-{"step": 36, "event": "enqueue_success", "epoch": 1, "topology": "flat", "from_agent": "multicast_test", "to_agent": "runner", "msg_id": "89886e90c80c4084ac09fd6835634f87"}
-{"step": 37, "event": "enqueue_attempt", "epoch": 1, "topology": "flat", "from_agent": "multicast_test", "to_agent": "critic", "msg_id": "be33bbee8e034b44b0798411b24ec8d8"}
-{"step": 38, "event": "enqueue_success", "epoch": 1, "topology": "flat", "from_agent": "multicast_test", "to_agent": "critic", "msg_id": "be33bbee8e034b44b0798411b24ec8d8"}
-{"step": 39, "event": "enqueue_attempt", "epoch": 1, "topology": "flat", "from_agent": "planner", "to_agent": "BROADCAST", "msg_id": "264b4d71e216476b92a726bb87202611"}
-{"step": 40, "event": "enqueue_rejected", "epoch": 1, "topology": "flat", "from_agent": "planner", "to_agent": "BROADCAST", "msg_id": "264b4d71e216476b92a726bb87202611", "reason": "Flat topology fanout 4 exceeds limit 2"}
+{"step": 25, "event": "enqueue_attempt", "epoch": 1, "topology": "flat", "from_agent": "coder", "to_agent": "runner", "msg_id": "a5c552a792f849f1a2de2c0292aff11d"}
+{"step": 26, "event": "enqueue_success", "epoch": 1, "topology": "flat", "from_agent": "coder", "to_agent": "runner", "msg_id": "a5c552a792f849f1a2de2c0292aff11d"}
+{"step": 27, "event": "enqueue_attempt", "epoch": 1, "topology": "flat", "from_agent": "runner", "to_agent": "critic", "msg_id": "779fc523f9cf49eabed25f37d5fc5635"}
+{"step": 28, "event": "enqueue_success", "epoch": 1, "topology": "flat", "from_agent": "runner", "to_agent": "critic", "msg_id": "779fc523f9cf49eabed25f37d5fc5635"}
+{"step": 29, "event": "enqueue_attempt", "epoch": 1, "topology": "flat", "from_agent": "critic", "to_agent": "coder", "msg_id": "10a900a0c80c4b28852c50d235c3b117"}
+{"step": 30, "event": "enqueue_success", "epoch": 1, "topology": "flat", "from_agent": "critic", "to_agent": "coder", "msg_id": "10a900a0c80c4b28852c50d235c3b117"}
+{"step": 31, "event": "enqueue_attempt", "epoch": 1, "topology": "flat", "from_agent": "planner", "to_agent": "summarizer", "msg_id": "683770b0d2fa4b7aa9dfc3e6b26b5d2c"}
+{"step": 32, "event": "enqueue_success", "epoch": 1, "topology": "flat", "from_agent": "planner", "to_agent": "summarizer", "msg_id": "683770b0d2fa4b7aa9dfc3e6b26b5d2c"}
+{"step": 33, "event": "enqueue_attempt", "epoch": 1, "topology": "flat", "from_agent": "multicast_test", "to_agent": "coder", "msg_id": "8fec1aedd8a74f61aaab626e819a61ea"}
+{"step": 34, "event": "enqueue_success", "epoch": 1, "topology": "flat", "from_agent": "multicast_test", "to_agent": "coder", "msg_id": "8fec1aedd8a74f61aaab626e819a61ea"}
+{"step": 35, "event": "enqueue_attempt", "epoch": 1, "topology": "flat", "from_agent": "multicast_test", "to_agent": "runner", "msg_id": "7594a1d4e1e4491ba02a2f883d893f22"}
+{"step": 36, "event": "enqueue_success", "epoch": 1, "topology": "flat", "from_agent": "multicast_test", "to_agent": "runner", "msg_id": "7594a1d4e1e4491ba02a2f883d893f22"}
+{"step": 37, "event": "enqueue_attempt", "epoch": 1, "topology": "flat", "from_agent": "multicast_test", "to_agent": "critic", "msg_id": "31fa125b1315454a8b957a248cafaaa7"}
+{"step": 38, "event": "enqueue_success", "epoch": 1, "topology": "flat", "from_agent": "multicast_test", "to_agent": "critic", "msg_id": "31fa125b1315454a8b957a248cafaaa7"}
+{"step": 39, "event": "enqueue_attempt", "epoch": 1, "topology": "flat", "from_agent": "planner", "to_agent": "BROADCAST", "msg_id": "ffd2b882414c48e99a7e9b80b62a5da2"}
+{"step": 40, "event": "enqueue_rejected", "epoch": 1, "topology": "flat", "from_agent": "planner", "to_agent": "BROADCAST", "msg_id": "ffd2b882414c48e99a7e9b80b62a5da2", "reason": "Flat topology fanout 4 exceeds limit 2"}
