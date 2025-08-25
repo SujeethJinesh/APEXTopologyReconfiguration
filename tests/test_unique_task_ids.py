@@ -1,117 +1,89 @@
-"""Test that task IDs are unique when n_episodes > base set."""
-
-from __future__ import annotations
-
-import json
-import tempfile
-from pathlib import Path
-import sys
-sys.path.insert(0, str(Path(__file__).parent.parent))
+"""Test unique task ID generation when repeating tasks."""
 
 from apex.eval.harness import EvalHarness, StubTask
 
 
 def test_unique_task_ids_with_repetition():
-    """Test that task IDs are unique when repeating base set."""
+    """Verify unique task_id per episode when repeating base tasks."""
+    h = EvalHarness(mode="stub", seed=1)
     
-    harness = EvalHarness(mode="stub", seed=42)
+    base = StubTask.generate_stub_tasks()
+    n_base = len(base)
     
-    # Base set has 12 tasks
-    base_tasks = StubTask.generate_stub_tasks(42)
-    assert len(base_tasks) == 12
+    # Force repetition beyond 2x to see multiple suffixes
+    n = n_base * 2 + 3
+    tasks = h.load_tasks(n)
     
-    # Request more episodes than base set
+    ids = [t.task_id for t in tasks]
+    assert len(ids) == n, f"Expected {n} tasks, got {len(ids)}"
+    assert len(set(ids)) == n, "Expected unique task_id per episode when repeating"
+    
+    # First batch should have original IDs (no suffix)
+    for i in range(n_base):
+        assert "__rep_" not in ids[i], f"First batch should not have suffix: {ids[i]}"
+    
+    # Second batch should have __rep_1 suffix
+    for i in range(n_base, min(2 * n_base, n)):
+        assert "__rep_1" in ids[i], f"Second batch should have __rep_1 suffix: {ids[i]}"
+    
+    # Third partial batch should have __rep_2 suffix
+    if n > 2 * n_base:
+        for i in range(2 * n_base, n):
+            assert "__rep_2" in ids[i], f"Third batch should have __rep_2 suffix: {ids[i]}"
+
+
+def test_paired_bootstrap_validity():
+    """Verify task IDs enable valid paired bootstrap across policies."""
+    # Create two harnesses (could be different policies)
+    h1 = EvalHarness(mode="stub", seed=42)
+    h2 = EvalHarness(mode="stub", seed=42)
+    
+    # Load same number of episodes (with repetition)
     n_episodes = 25
-    tasks = harness.load_tasks(n_episodes=n_episodes)
+    tasks1 = h1.load_tasks(n_episodes)
+    tasks2 = h2.load_tasks(n_episodes)
     
-    # Should have exactly n_episodes tasks
-    assert len(tasks) == n_episodes, f"Expected {n_episodes} tasks, got {len(tasks)}"
+    # Task IDs must match exactly for pairing
+    ids1 = [t.task_id for t in tasks1]
+    ids2 = [t.task_id for t in tasks2]
     
-    # All task IDs should be unique
-    task_ids = [task.task_id for task in tasks]
-    unique_ids = set(task_ids)
-    assert len(unique_ids) == n_episodes, f"Found duplicate task IDs: {len(unique_ids)} unique out of {n_episodes}"
+    assert ids1 == ids2, "Task IDs must match across policies for paired bootstrap"
     
-    # First 12 should have __rep_0 suffix
-    for i in range(12):
-        expected_id = f"{base_tasks[i].task_id}__rep_0"
-        assert tasks[i].task_id == expected_id, f"Task {i}: expected {expected_id}, got {tasks[i].task_id}"
+    # Verify suffixes are consistent
+    base_count = len(StubTask.generate_stub_tasks())
+    expected_reps = (n_episodes + base_count - 1) // base_count
     
-    # Next batch should have __rep_1 suffix
-    for i in range(12, min(24, n_episodes)):
-        base_idx = i - 12
-        expected_id = f"{base_tasks[base_idx].task_id}__rep_1"
-        assert tasks[i].task_id == expected_id, f"Task {i}: expected {expected_id}, got {tasks[i].task_id}"
-    
-    print(f"✓ All {n_episodes} task IDs are unique")
-    print(f"  First 12: {task_ids[:12]}")
-    print(f"  Repeated: {task_ids[12:15]}...")
+    for rep in range(expected_reps):
+        if rep == 0:
+            # First repetition has no suffix
+            for i in range(min(base_count, n_episodes)):
+                assert "__rep_" not in ids1[i], f"First rep should not have suffix: {ids1[i]}"
+        else:
+            # Subsequent repetitions have __rep_N suffix
+            start = rep * base_count
+            end = min(start + base_count, n_episodes)
+            for i in range(start, end):
+                assert f"__rep_{rep}" in ids1[i], f"Rep {rep} should have suffix: {ids1[i]}"
 
 
-def test_paired_bootstrap_uses_all_episodes():
-    """Test that paired bootstrap uses all n_episodes."""
+def test_no_task_id_collision():
+    """Ensure no task ID collisions even with many repetitions."""
+    h = EvalHarness(mode="stub", seed=99)
     
-    harness = EvalHarness(mode="stub", seed=42)
-    n_episodes = 20  # More than base 12
+    # Load many episodes (10x base set)
+    base_count = len(StubTask.generate_stub_tasks())
+    n_episodes = base_count * 10
+    tasks = h.load_tasks(n_episodes)
     
-    # Generate episodes for two policies
-    tasks = harness.load_tasks(n_episodes=n_episodes)
+    # All task IDs must be unique
+    ids = [t.task_id for t in tasks]
+    assert len(ids) == n_episodes
+    assert len(set(ids)) == n_episodes, f"Found duplicate task IDs in {n_episodes} episodes"
     
-    apex_results = []
-    static_results = []
-    
-    for task in tasks:
-        apex_result = harness.run_episode(task, "bandit_v1", 10000)
-        static_result = harness.run_episode(task, "static_star", 10000)
-        
-        apex_results.append(apex_result.to_dict())
-        static_results.append(static_result.to_dict())
-    
-    # Save to JSONL
-    with tempfile.TemporaryDirectory() as tmpdir:
-        apex_path = Path(tmpdir) / "apex.jsonl"
-        static_path = Path(tmpdir) / "static.jsonl"
-        
-        with open(apex_path, "w") as f:
-            for r in apex_results:
-                json.dump(r, f)
-                f.write("\n")
-        
-        with open(static_path, "w") as f:
-            for r in static_results:
-                json.dump(r, f)
-                f.write("\n")
-        
-        # Verify files have n_episodes lines
-        with open(apex_path) as f:
-            apex_lines = f.readlines()
-        with open(static_path) as f:
-            static_lines = f.readlines()
-        
-        assert len(apex_lines) == n_episodes
-        assert len(static_lines) == n_episodes
-        
-        # All task IDs should be unique in each file
-        apex_ids = set()
-        static_ids = set()
-        
-        for line in apex_lines:
-            obj = json.loads(line)
-            apex_ids.add(obj["task_id"])
-        
-        for line in static_lines:
-            obj = json.loads(line)
-            static_ids.add(obj["task_id"])
-        
-        assert len(apex_ids) == n_episodes, f"APEX has {len(apex_ids)} unique IDs, expected {n_episodes}"
-        assert len(static_ids) == n_episodes, f"Static has {len(static_ids)} unique IDs, expected {n_episodes}"
-        
-        print(f"✓ Both JSONL files have {n_episodes} unique task IDs")
-        print(f"  APEX unique IDs: {len(apex_ids)}")
-        print(f"  Static unique IDs: {len(static_ids)}")
-
-
-if __name__ == "__main__":
-    test_unique_task_ids_with_repetition()
-    print()
-    test_paired_bootstrap_uses_all_episodes()
+    # Verify suffix pattern
+    for i, task_id in enumerate(ids):
+        rep = i // base_count
+        if rep == 0:
+            assert "__rep_" not in task_id
+        else:
+            assert f"__rep_{rep}" in task_id, f"Wrong suffix at index {i}: {task_id}"

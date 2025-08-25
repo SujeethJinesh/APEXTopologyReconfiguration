@@ -165,5 +165,40 @@ def main():
     print(f"\nOutput written to: {output_path}")
 
 
+def compute_lift(apex_path: str, static_path: str, n_bootstrap: int = 1000, seed: int = 42) -> Dict:
+    """Compute lift programmatically (for testing).
+    
+    Returns dict with lift_mean, ci_lower, ci_upper, n_tasks.
+    """
+    # Load results
+    apex_results = load_jsonl(apex_path)
+    static_results = load_jsonl(static_path)
+    
+    # Group by task_id
+    apex_by_task = {r["task_id"]: r for r in apex_results}
+    static_by_task = {r["task_id"]: r for r in static_results}
+    
+    # Find common tasks
+    common_tasks = sorted(set(apex_by_task.keys()) & set(static_by_task.keys()))
+    
+    if not common_tasks:
+        return {"lift_mean": 0.0, "ci_lower": 0.0, "ci_upper": 0.0, "n_tasks": 0}
+    
+    # Compute paired lift with bootstrap CI
+    lift_abs, ci_low, ci_high = paired_bootstrap(
+        apex_by_task,
+        static_by_task,
+        n_bootstrap=n_bootstrap,
+        seed=seed
+    )
+    
+    return {
+        "lift_mean": lift_abs,
+        "ci_lower": ci_low,
+        "ci_upper": ci_high,
+        "n_tasks": len(common_tasks)
+    }
+
+
 if __name__ == "__main__":
     main()

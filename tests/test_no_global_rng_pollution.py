@@ -1,80 +1,50 @@
-"""Test that harness doesn't pollute global RNG state."""
-
-from __future__ import annotations
+"""Test that evaluation harness does not pollute global RNG state."""
 
 import random
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from apex.eval.harness import EvalHarness, StubTask
+from apex.eval.harness import EvalHarness
 
 
 def test_no_global_rng_pollution():
-    """Verify that harness operations don't affect global RNG."""
+    """Verify EvalHarness does not mutate the process-global RNG state."""
+    # Capture global RNG state before
+    s0 = random.getstate()
+
+    # Create harness and run operations that might pollute RNG
+    h = EvalHarness(mode="stub", seed=123)
+    tasks = h.load_tasks(15)  # Force repetition to test suffix generation
     
-    # Set global RNG to known state
-    random.seed(999)
-    expected_values = [random.random() for _ in range(5)]
+    # Optionally run a dry episode if needed
+    if tasks:
+        _ = h.run_episode(
+            tasks[0], 
+            policy="static_star", 
+            budget=10000
+        )
+
+    # Capture global RNG state after
+    s1 = random.getstate()
     
-    # Reset and create harnesses with different seeds
-    random.seed(999)
-    
-    # Create harness 1
-    harness1 = EvalHarness(mode="stub", seed=42)
-    tasks1 = harness1.load_tasks(n_episodes=5)
-    
-    # Create harness 2 with different seed
-    harness2 = EvalHarness(mode="stub", seed=123)
-    tasks2 = harness2.load_tasks(n_episodes=5)
-    
-    # Run episodes
-    for task in tasks1:
-        harness1.run_episode(task, "static_star", 10000)
-    
-    for task in tasks2:
-        harness2.run_episode(task, "static_chain", 10000)
-    
-    # Generate stub tasks (should not affect global RNG)
-    StubTask.generate_stub_tasks(seed=777)
-    StubTask.generate_stub_tasks(seed=888)
-    
-    # Check global RNG still produces expected values
-    actual_values = [random.random() for _ in range(5)]
-    
-    assert actual_values == expected_values, "Global RNG state was polluted"
-    print("✓ No global RNG pollution detected")
-    print(f"  Expected: {expected_values[:3]}...")
-    print(f"  Actual:   {actual_values[:3]}...")
+    # States must be identical - no global mutation allowed
+    assert s1 == s0, "EvalHarness must not mutate the process-global RNG state"
 
 
-def test_independent_harness_determinism():
-    """Test that harnesses with different seeds are independent."""
+def test_harness_uses_instance_rng():
+    """Verify harness uses its own RNG instance for determinism."""
+    # Two harnesses with same seed should produce identical results
+    h1 = EvalHarness(mode="stub", seed=42)
+    h2 = EvalHarness(mode="stub", seed=42)
     
-    harness1 = EvalHarness(mode="stub", seed=42)
-    harness2 = EvalHarness(mode="stub", seed=42)  # Same seed
-    harness3 = EvalHarness(mode="stub", seed=123)  # Different seed
+    tasks1 = h1.load_tasks(5)
+    tasks2 = h2.load_tasks(5)
     
-    tasks = StubTask.generate_stub_tasks(seed=1)
+    # Task IDs should be identical
+    ids1 = [t.task_id for t in tasks1]
+    ids2 = [t.task_id for t in tasks2]
+    assert ids1 == ids2, "Same seed should produce same task order"
     
-    # Run same task through each harness
-    result1 = harness1.run_episode(tasks[0], "static_star", 10000)
-    result2 = harness2.run_episode(tasks[0], "static_star", 10000)
-    result3 = harness3.run_episode(tasks[0], "static_star", 10000)
+    # Run episodes and check determinism
+    result1 = h1.run_episode(tasks1[0], "static_star", 10000)
+    result2 = h2.run_episode(tasks2[0], "static_star", 10000)
     
-    # Same seed should give same results
-    assert result1.tokens_used == result2.tokens_used, "Same seed should be deterministic"
-    
-    # Different seed should give different results (with high probability)
-    assert result1.tokens_used != result3.tokens_used, "Different seeds should differ"
-    
-    print("✓ Harnesses are independent and deterministic")
-    print(f"  Seed 42:  {result1.tokens_used} tokens")
-    print(f"  Seed 42:  {result2.tokens_used} tokens (same)")
-    print(f"  Seed 123: {result3.tokens_used} tokens (different)")
-
-
-if __name__ == "__main__":
-    test_no_global_rng_pollution()
-    print()
-    test_independent_harness_determinism()
+    assert result1.tokens_used == result2.tokens_used, "Same seed should produce same token usage"

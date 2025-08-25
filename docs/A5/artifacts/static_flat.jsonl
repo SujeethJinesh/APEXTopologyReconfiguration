@@ -10,3 +10,16 @@
 {"task_id": "stub_mixed_1", "policy": "static_flat", "success": true, "tokens_used": 7610, "over_budget": false, "budget": 10000, "seed": 42, "epoch_switches": 0, "notes": "topology_pref=chain"}
 {"task_id": "stub_mixed_2", "policy": "static_flat", "success": true, "tokens_used": 9346, "over_budget": false, "budget": 10000, "seed": 42, "epoch_switches": 0, "notes": "topology_pref=star"}
 {"task_id": "stub_mixed_3", "policy": "static_flat", "success": false, "tokens_used": 9981, "over_budget": false, "budget": 10000, "seed": 42, "epoch_switches": 0, "notes": "topology_pref=flat"}
+{"task_id": "stub_plan_1__rep_1", "policy": "static_flat", "success": true, "tokens_used": 3136, "over_budget": false, "budget": 10000, "seed": 42, "epoch_switches": 0, "notes": "topology_pref=star"}
+{"task_id": "stub_plan_2__rep_1", "policy": "static_flat", "success": true, "tokens_used": 5487, "over_budget": false, "budget": 10000, "seed": 42, "epoch_switches": 0, "notes": "topology_pref=star"}
+{"task_id": "stub_plan_3__rep_1", "policy": "static_flat", "success": false, "tokens_used": 3920, "over_budget": false, "budget": 10000, "seed": 42, "epoch_switches": 0, "notes": "topology_pref=star"}
+{"task_id": "stub_chain_1__rep_1", "policy": "static_flat", "success": true, "tokens_used": 6118, "over_budget": false, "budget": 10000, "seed": 42, "epoch_switches": 0, "notes": "topology_pref=chain"}
+{"task_id": "stub_chain_2__rep_1", "policy": "static_flat", "success": true, "tokens_used": 8982, "over_budget": false, "budget": 10000, "seed": 42, "epoch_switches": 0, "notes": "topology_pref=chain"}
+{"task_id": "stub_chain_3__rep_1", "policy": "static_flat", "success": false, "tokens_used": 7553, "over_budget": false, "budget": 10000, "seed": 42, "epoch_switches": 0, "notes": "topology_pref=chain"}
+{"task_id": "stub_compute_1__rep_1", "policy": "static_flat", "success": true, "tokens_used": 8530, "over_budget": false, "budget": 10000, "seed": 42, "epoch_switches": 0, "notes": "topology_pref=flat"}
+{"task_id": "stub_compute_2__rep_1", "policy": "static_flat", "success": false, "tokens_used": 10263, "over_budget": true, "budget": 10000, "seed": 42, "epoch_switches": 0, "notes": "topology_pref=flat"}
+{"task_id": "stub_compute_3__rep_1", "policy": "static_flat", "success": false, "tokens_used": 8890, "over_budget": false, "budget": 10000, "seed": 42, "epoch_switches": 0, "notes": "topology_pref=flat"}
+{"task_id": "stub_mixed_1__rep_1", "policy": "static_flat", "success": true, "tokens_used": 8091, "over_budget": false, "budget": 10000, "seed": 42, "epoch_switches": 0, "notes": "topology_pref=chain"}
+{"task_id": "stub_mixed_2__rep_1", "policy": "static_flat", "success": true, "tokens_used": 9416, "over_budget": false, "budget": 10000, "seed": 42, "epoch_switches": 0, "notes": "topology_pref=star"}
+{"task_id": "stub_mixed_3__rep_1", "policy": "static_flat", "success": false, "tokens_used": 10581, "over_budget": true, "budget": 10000, "seed": 42, "epoch_switches": 0, "notes": "topology_pref=flat"}
+{"task_id": "stub_plan_1__rep_2", "policy": "static_flat", "success": true, "tokens_used": 2912, "over_budget": false, "budget": 10000, "seed": 42, "epoch_switches": 0, "notes": "topology_pref=star"}

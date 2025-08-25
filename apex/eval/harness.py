@@ -15,7 +15,7 @@ class StubTask:
     """Stub task generator for fast deterministic testing."""
 
     @staticmethod
-    def generate_stub_tasks(seed: int = 42) -> List[Task]:
+    def generate_stub_tasks() -> List[Task]:
         """Generate deterministic stub tasks for testing.
 
         Each task simulates different token costs and success patterns
@@ -24,10 +24,10 @@ class StubTask:
         Note: In stub mode, 'expected_success' is a predetermined property
         rather than an observed outcome. Real completion will be determined
         by actual task execution in SWE-bench mode.
+        
+        IMPORTANT: Do not mutate the process-global RNG here.
         """
-        # Use local RNG to avoid global state pollution
-        # Currently not needed as task list is static, but preserves interface
-        # rng = random.Random(seed)  # Uncomment if randomness needed later
+        # No RNG seeding - task list is fully deterministic
 
         tasks = [
             # Lightweight planner tasks (prefer star)
@@ -76,7 +76,7 @@ class EvalHarness:
     def load_tasks(self, n_episodes: Optional[int] = None) -> List[Task]:
         """Load tasks based on mode."""
         if self.mode == "stub":
-            base_tasks = StubTask.generate_stub_tasks(self.seed)
+            base_tasks = StubTask.generate_stub_tasks()
             if n_episodes and n_episodes > len(base_tasks):
                 # Extend with uniquely suffixed task IDs
                 tasks = []
@@ -85,9 +85,10 @@ class EvalHarness:
                     for task in base_tasks:
                         if len(tasks) >= n_episodes:
                             break
-                        # Create unique task ID for each repetition
+                        # Ensure per-episode unique identifiers when repeating the base set
+                        new_id = task.task_id if rep == 0 else f"{task.task_id}__rep_{rep}"
                         unique_task = Task(
-                            task_id=f"{task.task_id}__rep_{rep}",
+                            task_id=new_id,
                             description=task.description,
                             expected_success=task.expected_success,
                             token_cost=task.token_cost,

@@ -152,5 +152,31 @@ def main():
     print(f"\nOutput written to: {args.out}")
 
 
+def compute_cp(input_path: str, confidence: float = 0.95) -> Dict:
+    """Compute CP bound programmatically (for testing).
+    
+    Returns dict with violations, total, violation_rate, cp_upper_95.
+    """
+    # Load results
+    results = load_jsonl(input_path)
+    
+    if not results:
+        return {"violations": 0, "total": 0, "violation_rate": 0.0, "cp_upper_95": 0.0}
+    
+    # Count violations
+    total = len(results)
+    violations = sum(1 for r in results if r.get("over_budget", False))
+    
+    # Compute CP upper bound
+    cp_upper = clopper_pearson_upper(violations, total, confidence)
+    
+    return {
+        "violations": violations,
+        "total": total,
+        "violation_rate": violations / total if total > 0 else 0.0,
+        "cp_upper_95": cp_upper
+    }
+
+
 if __name__ == "__main__":
     main()
