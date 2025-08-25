@@ -6,7 +6,7 @@ import random
 from typing import List, Optional, Tuple
 
 from apex.controller.bandit_v1 import BanditSwitchV1
-from apex.runtime.topology_switch import TopologySwitch
+from apex.eval.stubs.topology_switch import TopologySwitch
 
 from .task import Task, TaskResult
 
@@ -76,13 +76,29 @@ class EvalHarness:
     def load_tasks(self, n_episodes: Optional[int] = None) -> List[Task]:
         """Load tasks based on mode."""
         if self.mode == "stub":
-            tasks = StubTask.generate_stub_tasks(self.seed)
-            if n_episodes:
-                # Repeat tasks if needed to reach n_episodes
+            base_tasks = StubTask.generate_stub_tasks(self.seed)
+            if n_episodes and n_episodes > len(base_tasks):
+                # Extend with uniquely suffixed task IDs
+                tasks = []
+                rep = 0
                 while len(tasks) < n_episodes:
-                    tasks.extend(StubTask.generate_stub_tasks(self.seed + len(tasks)))
-                tasks = tasks[:n_episodes]
-            return tasks
+                    for task in base_tasks:
+                        if len(tasks) >= n_episodes:
+                            break
+                        # Create unique task ID for each repetition
+                        unique_task = Task(
+                            task_id=f"{task.task_id}__rep_{rep}",
+                            description=task.description,
+                            expected_success=task.expected_success,
+                            token_cost=task.token_cost,
+                            topology_preference=task.topology_preference,
+                            metadata=task.metadata
+                        )
+                        tasks.append(unique_task)
+                    rep += 1
+                return tasks[:n_episodes]
+            else:
+                return base_tasks[:n_episodes] if n_episodes else base_tasks
         else:
             raise NotImplementedError(f"Mode {self.mode} not implemented")
 

@@ -8,7 +8,7 @@ import pytest
 
 from apex.controller.bandit_v1 import BanditSwitchV1
 from apex.eval.harness import EvalHarness, StubTask
-from apex.runtime.topology_switch import TopologySwitch
+from apex.eval.stubs.topology_switch import TopologySwitch
 
 
 class TestStubHarness:

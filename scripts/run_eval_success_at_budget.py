@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from apex.controller.bandit_v1 import BanditSwitchV1
 from apex.eval.harness import EvalHarness
-from apex.runtime.topology_switch import TopologySwitch
+from apex.eval.stubs.topology_switch import TopologySwitch
 
 
 def main():
