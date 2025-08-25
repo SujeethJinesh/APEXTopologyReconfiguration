@@ -20,8 +20,14 @@ class StubTask:
 
         Each task simulates different token costs and success patterns
         across different topologies to ensure variance.
+        
+        Note: In stub mode, 'expected_success' is a predetermined property
+        rather than an observed outcome. Real completion will be determined
+        by actual task execution in SWE-bench mode.
         """
-        random.seed(seed)
+        # Use local RNG to avoid global state pollution
+        # Currently not needed as task list is static, but preserves interface
+        # rng = random.Random(seed)  # Uncomment if randomness needed later
 
         tasks = [
             # Lightweight planner tasks (prefer star)
