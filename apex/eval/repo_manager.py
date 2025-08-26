@@ -129,18 +129,50 @@ class RepoManager:
         return repo_path
 
     @staticmethod
-    def bootstrap_environment(repo_path: Path) -> dict:
+    def bootstrap_environment(repo_path: Path, use_venv: bool = True) -> dict:
         """Bootstrap repository environment (install dependencies).
 
         Args:
             repo_path: Path to repository
+            use_venv: If True, create per-task virtual environment
 
         Returns:
             Dict with "success" bool, "steps" list, and optional "error" string
         """
+        import platform
+        import sys
+
         steps = []
+        pip_cmd = ["pip"]
 
         try:
+            # Create per-task venv if requested
+            if use_venv:
+                env_dir = repo_path / ".apex_venv"
+                if not env_dir.exists():
+                    result = subprocess.run(
+                        [sys.executable, "-m", "venv", str(env_dir)],
+                        capture_output=True,
+                        text=True,
+                    )
+                    steps.append(f"Create venv at {env_dir} (exit {result.returncode})")
+
+                    if result.returncode == 0:
+                        # Use venv pip
+                        if platform.system() == "Windows":
+                            pip_cmd = [str(env_dir / "Scripts" / "pip.exe")]
+                        else:
+                            pip_cmd = [str(env_dir / "bin" / "pip")]
+
+                        # Upgrade pip/setuptools
+                        result = subprocess.run(
+                            pip_cmd + ["install", "-U", "pip", "wheel", "setuptools"],
+                            capture_output=True,
+                            text=True,
+                            timeout=60,
+                        )
+                        steps.append(f"Upgrade pip/wheel/setuptools (exit {result.returncode})")
+
             # Check for setup files
             has_pyproject = (repo_path / "pyproject.toml").exists()
             has_setup_py = (repo_path / "setup.py").exists()
@@ -149,7 +181,7 @@ class RepoManager:
             # Try to install the package itself if setup file exists
             if has_pyproject or has_setup_py:
                 result = subprocess.run(
-                    ["pip", "install", "-e", "."],
+                    pip_cmd + ["install", "-e", "."],
                     cwd=repo_path,
                     capture_output=True,
                     text=True,
@@ -160,7 +192,7 @@ class RepoManager:
                 if result.returncode != 0:
                     # Try without -e flag as fallback
                     result = subprocess.run(
-                        ["pip", "install", "."],
+                        pip_cmd + ["install", "."],
                         cwd=repo_path,
                         capture_output=True,
                         text=True,
@@ -171,13 +203,31 @@ class RepoManager:
             # Install requirements if present
             if has_requirements:
                 result = subprocess.run(
-                    ["pip", "install", "-r", "requirements.txt"],
+                    pip_cmd + ["install", "-r", "requirements.txt"],
                     cwd=repo_path,
                     capture_output=True,
                     text=True,
                     timeout=120,
                 )
                 steps.append(f"pip install -r requirements.txt (exit {result.returncode})")
+
+            # Log environment if using venv
+            if use_venv and pip_cmd != ["pip"]:
+                try:
+                    freeze_out = subprocess.check_output(
+                        pip_cmd + ["freeze"],
+                        cwd=repo_path,
+                        text=True,
+                        timeout=30,
+                    )
+                    artifacts_dir = repo_path.parent / "artifacts"
+                    if artifacts_dir.exists():
+                        (artifacts_dir / "pip_freeze.txt").write_text(
+                            freeze_out, encoding="utf-8"
+                        )
+                    steps.append("Environment logged to pip_freeze.txt")
+                except Exception:
+                    pass  # Non-critical
 
             return {
                 "success": True,
@@ -272,20 +322,29 @@ class RepoManager:
             )
 
             # Try 3-way merge as last resort
-            result = subprocess.run(
-                ["git", "apply", "--3way", "--whitespace=nowarn", patch_file],
+            result_3way = subprocess.run(
+                ["git", "apply", "--3way", "--reject", "--whitespace=nowarn", patch_file],
                 cwd=repo_path,
                 capture_output=True,
                 text=True,
             )
 
-            patch_strategy = "3way"
-            if result.returncode == 0:
-                print(f"Patch applied using strategy: {patch_strategy}")
+            if result_3way.returncode == 0:
+                print("Patch applied using strategy: 3way")
                 return True
 
-            # Log failure
-            print(f"Patch application failed (tried p0, p1, 3way): {result.stderr[:500]}")
+            # Log failure - persist to artifacts if available
+            stderr_log = f"p0/p1/3way all failed\n\n--- stderr ---\n{result_3way.stderr}\n"
+            print(f"Patch application failed (tried p0, p1, 3way): {result_3way.stderr[:500]}")
+            
+            # Try to save to artifacts dir if it exists
+            artifacts_dir = repo_path.parent / "artifacts"
+            if artifacts_dir.exists():
+                (artifacts_dir / "git_apply_stderr.txt").write_text(
+                    stderr_log,
+                    encoding="utf-8"
+                )
+            
             return False
 
         finally:
