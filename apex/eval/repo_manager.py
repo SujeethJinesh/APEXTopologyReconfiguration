@@ -372,10 +372,23 @@ class RepoManager:
             - exit_code: pytest exit code
             - duration_s: execution time in seconds
         """
+        import platform
+        import sys
+        
         start_time = time.time()
 
-        # Build pytest command
-        cmd = ["pytest", "-q"]
+        # Check for per-task venv and use its pytest if available
+        venv_dir = repo_path / ".apex_venv"
+        if venv_dir.exists():
+            if platform.system() == "Windows":
+                pytest_cmd = str(venv_dir / "Scripts" / "python.exe")
+            else:
+                pytest_cmd = str(venv_dir / "bin" / "python")
+            # Use venv python with -m pytest to ensure correct environment
+            cmd = [pytest_cmd, "-m", "pytest", "-q"]
+        else:
+            # Fall back to system pytest
+            cmd = ["pytest", "-q"]
 
         # If specific tests selected, use -k to filter
         if test_select and len(test_select) > 0:

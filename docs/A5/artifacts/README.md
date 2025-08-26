@@ -2,6 +2,8 @@
 
 This directory contains machine-verifiable artifacts from the Success@Budget evaluation harness.
 
+**IMPORTANT NOTE:** For A5/F5.4 evaluation, use ONLY the `*_dev_sample100.*` files in the `swe/dev/` subdirectory. These represent the frozen task list evaluation with N=100 paired samples. Earlier artifacts without this suffix are legacy and should not be used for current analysis.
+
 ## File Descriptions
 
 ### Episode Results (JSONL)
