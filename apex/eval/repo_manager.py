@@ -222,9 +222,7 @@ class RepoManager:
                     )
                     artifacts_dir = repo_path.parent / "artifacts"
                     if artifacts_dir.exists():
-                        (artifacts_dir / "pip_freeze.txt").write_text(
-                            freeze_out, encoding="utf-8"
-                        )
+                        (artifacts_dir / "pip_freeze.txt").write_text(freeze_out, encoding="utf-8")
                     steps.append("Environment logged to pip_freeze.txt")
                 except Exception:
                     pass  # Non-critical
@@ -336,15 +334,12 @@ class RepoManager:
             # Log failure - persist to artifacts if available
             stderr_log = f"p0/p1/3way all failed\n\n--- stderr ---\n{result_3way.stderr}\n"
             print(f"Patch application failed (tried p0, p1, 3way): {result_3way.stderr[:500]}")
-            
+
             # Try to save to artifacts dir if it exists
             artifacts_dir = repo_path.parent / "artifacts"
             if artifacts_dir.exists():
-                (artifacts_dir / "git_apply_stderr.txt").write_text(
-                    stderr_log,
-                    encoding="utf-8"
-                )
-            
+                (artifacts_dir / "git_apply_stderr.txt").write_text(stderr_log, encoding="utf-8")
+
             return False
 
         finally:
@@ -373,8 +368,7 @@ class RepoManager:
             - duration_s: execution time in seconds
         """
         import platform
-        import sys
-        
+
         start_time = time.time()
 
         # Check for per-task venv and use its pytest if available
