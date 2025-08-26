@@ -327,12 +327,13 @@ class EvalHarness:
             # Check success: all selected tests must pass
             success = test_result["exit_code"] == 0 and test_result["failed"] == 0
 
-            # Simulate token usage based on test execution time
-            # Rough heuristic: 100 tokens per second of execution
-            tokens_used = int(test_result["duration_s"] * 100)
-
-            # Add base cost for repository setup
-            tokens_used += 1000
+            # Token accounting for SWE mode
+            # TODO: When agents/LLM are integrated, aggregate actual token usage
+            # For now, use heuristic based on test execution time:
+            # - 100 tokens per second of test execution (rough estimate)
+            # - 1000 base tokens for repository setup overhead
+            # In oracle-smoke mode, this represents the "ground truth" cost
+            tokens_used = int(test_result["duration_s"] * 100) + 1000
 
             return success, tokens_used
 
