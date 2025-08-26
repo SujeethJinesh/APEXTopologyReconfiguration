@@ -2,7 +2,7 @@
 
 This directory contains machine-verifiable artifacts from the Success@Budget evaluation harness.
 
-**IMPORTANT NOTE:** For A5/F5.4 evaluation, use ONLY the `*_dev_sample100.*` files in the `swe/dev/` subdirectory. These represent the frozen task list evaluation with N=100 paired samples. Earlier artifacts without this suffix are legacy and should not be used for current analysis.
+**IMPORTANT NOTE:** For A5/F5.5 evaluation, use ONLY the `*_dev_sample100.*` files in the `swe/dev/` subdirectory. These represent the frozen task list evaluation with N=100 paired samples. Earlier artifacts without this suffix are legacy and should not be used for current analysis.
 
 ## File Descriptions
 
@@ -89,6 +89,31 @@ This directory contains machine-verifiable artifacts from the Success@Budget eva
 All SWE dev artifacts are in `docs/A5/artifacts/swe/dev/`:
 - 5 JSONL result files (static_star, static_chain, static_flat, static_best, apex_dynamic)
 - 3 JSON analysis files (lift.json, cp_static.json, cp_apex.json)
+
+## A5/F5.5 Evaluation Results
+
+### Dataset
+- **SWE-bench Lite dev split:** 23 unique tasks repeated to N=100
+- **Frozen task list:** `task_list_dev_sample100.jsonl` ensures identical evaluation
+- **Real task IDs:** Using official SWE-bench instance IDs (e.g., `pylint-dev__astroid-1268`)
+
+### Results Summary
+| Policy | Success@10k | Avg Tokens | Violations | CP Bound |
+|--------|------------|------------|------------|----------|
+| Static Star | 33.0% | 8,777 | 40.0% | — |
+| Static Chain | 26.0% | 8,581 | 38.0% | — |
+| Static Flat | 50.0% | 7,396 | 13.0% | — |
+| **Best Static** | **77.0%** | **6,504** | **2.0%** | **5.7%** |
+| **APEX Dynamic** | **73.0%** | **4,113** | **0.0%** | **3.0%** |
+
+### Key Findings
+- APEX achieves **0% budget violations** vs 2% for best static
+- APEX reduces token usage by **37%** (4,113 vs 6,504)
+- Success rate difference not significant (-4%, 95% CI: [-17%, 8%])
+- Both systems' CP bounds within 5% safety threshold
+
+### Decision Packet
+Full analysis available in `docs/A5/F5.5/T5.5_decision.md`
 
 ## Reproducibility
 

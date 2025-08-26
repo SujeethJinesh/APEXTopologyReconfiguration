@@ -117,7 +117,7 @@ class SWELiteProvider:
 
         # Load from Hugging Face with exact dataset name
         dataset = datasets.load_dataset(
-            "princeton-nlp/SWE-bench_Lite",  # Note: underscore, not hyphen
+            "SWE-bench/SWE-bench_Lite",  # Official namespace
             split=split,
             cache_dir=str(self.cache_dir),
         )
