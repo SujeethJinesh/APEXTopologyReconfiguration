@@ -20,11 +20,11 @@ class StubTask:
 
         Each task simulates different token costs and success patterns
         across different topologies to ensure variance.
-        
+
         Note: In stub mode, 'expected_success' is a predetermined property
         rather than an observed outcome. Real completion will be determined
         by actual task execution in SWE-bench mode.
-        
+
         IMPORTANT: Do not mutate the process-global RNG here.
         """
         # No RNG seeding - task list is fully deterministic
@@ -93,7 +93,7 @@ class EvalHarness:
                             expected_success=task.expected_success,
                             token_cost=task.token_cost,
                             topology_preference=task.topology_preference,
-                            metadata=task.metadata
+                            metadata=task.metadata,
                         )
                         tasks.append(unique_task)
                     rep += 1
