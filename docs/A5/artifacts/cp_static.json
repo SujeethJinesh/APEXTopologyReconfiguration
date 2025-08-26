@@ -1,0 +1,8 @@
+{
+  "violations": 2,
+  "total": 25,
+  "cp_upper_95": 0.2596283040923812,
+  "seed": 42,
+  "confidence": 0.95,
+  "empirical_rate": 0.08
+}

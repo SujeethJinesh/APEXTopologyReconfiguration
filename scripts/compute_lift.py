@@ -1,0 +1,223 @@
+#!/usr/bin/env python3
+"""Compute lift (APEX - Best Static) with paired bootstrap confidence intervals."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import random
+from collections import defaultdict
+from pathlib import Path
+from typing import Dict, List, Tuple
+
+
+def load_jsonl(path: str) -> List[Dict]:
+    """Load JSONL file."""
+    results = []
+    with open(path, "r") as f:
+        for line in f:
+            if line.strip():
+                results.append(json.loads(line))
+    return results
+
+
+def compute_success_rate(results: List[Dict]) -> float:
+    """Compute success rate from results."""
+    if not results:
+        return 0.0
+    return sum(1 for r in results if r["success"]) / len(results)
+
+
+def paired_bootstrap(
+    apex_by_task: Dict[str, Dict],
+    static_by_task: Dict[str, Dict],
+    n_bootstrap: int = 1000,
+    seed: int = 42
+) -> Tuple[float, float, float]:
+    """Compute paired bootstrap confidence interval for lift.
+    
+    Returns:
+        (lift_estimate, ci_low, ci_high)
+    """
+    random.seed(seed)
+    
+    # Get common tasks
+    common_tasks = sorted(set(apex_by_task.keys()) & set(static_by_task.keys()))
+    
+    if not common_tasks:
+        return 0.0, 0.0, 0.0
+    
+    # Compute observed lift
+    apex_successes = sum(1 for tid in common_tasks if apex_by_task[tid]["success"])
+    static_successes = sum(1 for tid in common_tasks if static_by_task[tid]["success"])
+    
+    observed_lift = (apex_successes - static_successes) / len(common_tasks)
+    
+    # Bootstrap resampling
+    bootstrap_lifts = []
+    
+    for _ in range(n_bootstrap):
+        # Resample tasks with replacement
+        resampled_tasks = random.choices(common_tasks, k=len(common_tasks))
+        
+        # Compute lift on resampled data
+        apex_resample = sum(1 for tid in resampled_tasks if apex_by_task[tid]["success"])
+        static_resample = sum(1 for tid in resampled_tasks if static_by_task[tid]["success"])
+        
+        lift = (apex_resample - static_resample) / len(resampled_tasks)
+        bootstrap_lifts.append(lift)
+    
+    # Compute percentile CI
+    bootstrap_lifts.sort()
+    ci_low = bootstrap_lifts[int(0.025 * n_bootstrap)]
+    ci_high = bootstrap_lifts[int(0.975 * n_bootstrap)]
+    
+    return observed_lift, ci_low, ci_high
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Compute lift between APEX and Best Static")
+    parser.add_argument("--a", type=str, required=True, help="Path to APEX dynamic JSONL")
+    parser.add_argument("--b", type=str, required=True, help="Path to Best Static JSONL")
+    parser.add_argument("--out", type=str, required=True, help="Output JSON path")
+    parser.add_argument("--paired", action="store_true", default=True, help="Use paired bootstrap (default)")
+    parser.add_argument("--n-bootstrap", type=int, default=1000, help="Number of bootstrap samples")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--verbose", action="store_true", help="Print detailed stats")
+    
+    args = parser.parse_args()
+    
+    # Load results
+    apex_results = load_jsonl(args.a)
+    static_results = load_jsonl(args.b)
+    
+    # Group by task_id
+    apex_by_task = {r["task_id"]: r for r in apex_results}
+    static_by_task = {r["task_id"]: r for r in static_results}
+    
+    # Find common tasks
+    common_tasks = sorted(set(apex_by_task.keys()) & set(static_by_task.keys()))
+    
+    if not common_tasks:
+        print("Error: No common tasks found between APEX and Static results")
+        return
+    
+    # Compute paired lift with bootstrap CI
+    lift_abs, ci_low, ci_high = paired_bootstrap(
+        apex_by_task,
+        static_by_task,
+        n_bootstrap=args.n_bootstrap,
+        seed=args.seed
+    )
+    
+    # Prepare output with explicit metadata header
+    output = {
+        "metadata": {
+            "n_bootstrap": args.n_bootstrap,
+            "seed": args.seed,
+            "paired_by": "task_id",
+            "n_tasks": len(common_tasks),
+            "paired": args.paired
+        },
+        "results": {
+            "lift_abs": lift_abs,
+            "ci_low": ci_low,
+            "ci_high": ci_high
+        },
+        # Legacy flat format for backward compatibility
+        "lift_abs": lift_abs,
+        "ci_low": ci_low,
+        "ci_high": ci_high,
+        "n": len(common_tasks),
+        "seed": args.seed,
+        "n_bootstrap": args.n_bootstrap,
+        "paired": args.paired
+    }
+    
+    # Write output
+    output_path = Path(args.out)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    with open(output_path, "w") as f:
+        json.dump(output, f, indent=2)
+    
+    # Print summary
+    print(f"Lift Analysis (APEX - Best Static)")
+    print(f"Tasks analyzed: {len(common_tasks)}")
+    print(f"Bootstrap samples: {args.n_bootstrap}")
+    print(f"Random seed: {args.seed}")
+    print()
+    
+    # Compute individual success rates
+    apex_success_rate = sum(1 for tid in common_tasks if apex_by_task[tid]["success"]) / len(common_tasks)
+    static_success_rate = sum(1 for tid in common_tasks if static_by_task[tid]["success"]) / len(common_tasks)
+    
+    print(f"APEX success rate: {apex_success_rate:.3f}")
+    print(f"Best Static success rate: {static_success_rate:.3f}")
+    print()
+    print(f"Lift (absolute): {lift_abs:.3f}")
+    print(f"95% CI: [{ci_low:.3f}, {ci_high:.3f}]")
+    
+    if ci_low > 0:
+        print("✓ APEX significantly outperforms Best Static (CI excludes 0)")
+    elif ci_high < 0:
+        print("✗ Best Static significantly outperforms APEX (CI excludes 0)")
+    else:
+        print("- No significant difference (CI includes 0)")
+    
+    if args.verbose:
+        print(f"\nPer-task comparison:")
+        for tid in common_tasks:
+            apex_success = "✓" if apex_by_task[tid]["success"] else "✗"
+            static_success = "✓" if static_by_task[tid]["success"] else "✗"
+            apex_tokens = apex_by_task[tid]["tokens_used"]
+            static_tokens = static_by_task[tid]["tokens_used"]
+            
+            print(f"  {tid:15} APEX:{apex_success} {apex_tokens:5} | Static:{static_success} {static_tokens:5}")
+    
+    print(f"\nOutput written to: {output_path}")
+
+
+def compute_lift(apex_path: str, static_path: str, n_bootstrap: int = 1000, seed: int = 42) -> Dict:
+    """Compute lift programmatically (for testing).
+    
+    Returns dict with lift_mean, ci_lower, ci_upper, n_tasks.
+    """
+    # Load results
+    apex_results = load_jsonl(apex_path)
+    static_results = load_jsonl(static_path)
+    
+    # Group by task_id
+    apex_by_task = {r["task_id"]: r for r in apex_results}
+    static_by_task = {r["task_id"]: r for r in static_results}
+    
+    # Find common tasks
+    common_tasks = sorted(set(apex_by_task.keys()) & set(static_by_task.keys()))
+    
+    if not common_tasks:
+        return {"lift_mean": 0.0, "ci_lower": 0.0, "ci_upper": 0.0, "n_tasks": 0}
+    
+    # Compute paired lift with bootstrap CI
+    lift_abs, ci_low, ci_high = paired_bootstrap(
+        apex_by_task,
+        static_by_task,
+        n_bootstrap=n_bootstrap,
+        seed=seed
+    )
+    
+    return {
+        "metadata": {
+            "n_bootstrap": n_bootstrap,
+            "seed": seed,
+            "paired_by": "task_id",
+            "n_tasks": len(common_tasks)
+        },
+        "lift_mean": lift_abs,
+        "ci_lower": ci_low,
+        "ci_upper": ci_high,
+        "n_tasks": len(common_tasks)
+    }
+
+
+if __name__ == "__main__":
+    main()
