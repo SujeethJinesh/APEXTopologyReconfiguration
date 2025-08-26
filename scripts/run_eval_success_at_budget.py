@@ -66,7 +66,6 @@ def main():
     
     # Network gating check for SWE mode
     if args.mode == "swe" and not args.offline:
-        import os
         if os.getenv("APEX_ALLOW_NETWORK") != "1":
             print("Error: SWE mode requires network access.")
             print("Either set APEX_ALLOW_NETWORK=1 or use --offline with fixtures.")
