@@ -118,7 +118,84 @@ class RepoManager:
             if not success:
                 raise RuntimeError("Failed to apply gold patch in oracle mode")
 
+        # Environment bootstrap
+        env_status = RepoManager.bootstrap_environment(repo_path)
+        if not env_status["success"]:
+            print(
+                f"Warning: Environment bootstrap failed for {record.task_id}: "
+                f"{env_status.get('error', 'Unknown error')}"
+            )
+
         return repo_path
+
+    @staticmethod
+    def bootstrap_environment(repo_path: Path) -> dict:
+        """Bootstrap repository environment (install dependencies).
+
+        Args:
+            repo_path: Path to repository
+
+        Returns:
+            Dict with "success" bool, "steps" list, and optional "error" string
+        """
+        steps = []
+
+        try:
+            # Check for setup files
+            has_pyproject = (repo_path / "pyproject.toml").exists()
+            has_setup_py = (repo_path / "setup.py").exists()
+            has_requirements = (repo_path / "requirements.txt").exists()
+
+            # Try to install the package itself if setup file exists
+            if has_pyproject or has_setup_py:
+                result = subprocess.run(
+                    ["pip", "install", "-e", "."],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                )
+                steps.append(f"pip install -e . (exit {result.returncode})")
+
+                if result.returncode != 0:
+                    # Try without -e flag as fallback
+                    result = subprocess.run(
+                        ["pip", "install", "."],
+                        cwd=repo_path,
+                        capture_output=True,
+                        text=True,
+                        timeout=120,
+                    )
+                    steps.append(f"pip install . (exit {result.returncode})")
+
+            # Install requirements if present
+            if has_requirements:
+                result = subprocess.run(
+                    ["pip", "install", "-r", "requirements.txt"],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                )
+                steps.append(f"pip install -r requirements.txt (exit {result.returncode})")
+
+            return {
+                "success": True,
+                "steps": steps,
+            }
+
+        except subprocess.TimeoutExpired:
+            return {
+                "success": False,
+                "steps": steps,
+                "error": "Environment bootstrap timed out",
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "steps": steps,
+                "error": str(e),
+            }
 
     @staticmethod
     def apply_patch(repo_path: Path, patch_str: str) -> bool:
@@ -148,6 +225,7 @@ class RepoManager:
                 text=True,
             )
 
+            patch_strategy = "p0"
             if result.returncode == 0:
                 return True
 
@@ -174,11 +252,40 @@ class RepoManager:
                 text=True,
             )
 
+            patch_strategy = "p1"
             if result.returncode == 0:
+                print(f"Patch applied using strategy: {patch_strategy}")
+                return True
+
+            # Reset again for 3-way attempt
+            subprocess.run(
+                ["git", "reset", "--hard", "HEAD"],
+                cwd=repo_path,
+                capture_output=True,
+                check=False,
+            )
+            subprocess.run(
+                ["git", "clean", "-xdf"],
+                cwd=repo_path,
+                capture_output=True,
+                check=False,
+            )
+
+            # Try 3-way merge as last resort
+            result = subprocess.run(
+                ["git", "apply", "--3way", "--whitespace=nowarn", patch_file],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+            )
+
+            patch_strategy = "3way"
+            if result.returncode == 0:
+                print(f"Patch applied using strategy: {patch_strategy}")
                 return True
 
             # Log failure
-            print(f"Patch application failed: {result.stderr[:500]}")
+            print(f"Patch application failed (tried p0, p1, 3way): {result.stderr[:500]}")
             return False
 
         finally:
