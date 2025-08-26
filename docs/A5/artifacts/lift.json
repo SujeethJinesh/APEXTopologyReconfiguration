@@ -1,4 +1,16 @@
 {
+  "metadata": {
+    "n_bootstrap": 1000,
+    "seed": 42,
+    "paired_by": "task_id",
+    "n_tasks": 25,
+    "paired": true
+  },
+  "results": {
+    "lift_abs": 0.04,
+    "ci_low": 0.0,
+    "ci_high": 0.12
+  },
   "lift_abs": 0.04,
   "ci_low": 0.0,
   "ci_high": 0.12,

@@ -110,8 +110,21 @@ def main():
         seed=args.seed
     )
     
-    # Prepare output
+    # Prepare output with explicit metadata header
     output = {
+        "metadata": {
+            "n_bootstrap": args.n_bootstrap,
+            "seed": args.seed,
+            "paired_by": "task_id",
+            "n_tasks": len(common_tasks),
+            "paired": args.paired
+        },
+        "results": {
+            "lift_abs": lift_abs,
+            "ci_low": ci_low,
+            "ci_high": ci_high
+        },
+        # Legacy flat format for backward compatibility
         "lift_abs": lift_abs,
         "ci_low": ci_low,
         "ci_high": ci_high,
@@ -193,6 +206,12 @@ def compute_lift(apex_path: str, static_path: str, n_bootstrap: int = 1000, seed
     )
     
     return {
+        "metadata": {
+            "n_bootstrap": n_bootstrap,
+            "seed": seed,
+            "paired_by": "task_id",
+            "n_tasks": len(common_tasks)
+        },
         "lift_mean": lift_abs,
         "ci_lower": ci_low,
         "ci_upper": ci_high,
