@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import os
 import random
-from typing import List, Optional, Tuple
+import time
+from pathlib import Path
+from typing import List, Literal, Optional, Tuple
 
 from apex.controller.bandit_v1 import BanditSwitchV1
 from apex.eval.stubs.topology_switch import TopologySwitch
 
+from .providers import SWELiteProvider
+from .repo_manager import RepoManager
 from .task import Task, TaskResult
 
 
@@ -54,12 +59,20 @@ class StubTask:
 class EvalHarness:
     """Main evaluation harness for Success@Budget metric."""
 
-    def __init__(self, mode: str = "stub", seed: int = 42):
+    def __init__(
+        self,
+        mode: str = "stub",
+        seed: int = 42,
+        split: Optional[Literal["dev", "test"]] = None,
+        cache_dir: Optional[Path] = None,
+    ):
         """Initialize harness.
 
         Args:
             mode: "stub" for fast CI testing, "swe" for SWE-bench Lite
             seed: Random seed for reproducibility
+            split: Dataset split for SWE mode ("dev" or "test")
+            cache_dir: Cache directory for SWE datasets
         """
         self.mode = mode
         self.seed = seed
@@ -69,9 +82,19 @@ class EvalHarness:
             raise ValueError(f"Invalid mode: {mode}. Use 'stub' or 'swe'")
 
         if mode == "swe":
-            raise NotImplementedError(
-                "SWE-bench mode not enabled in CI. Set environment flag to enable."
-            )
+            if not os.getenv("APEX_ALLOW_NETWORK"):
+                raise NotImplementedError(
+                    "SWE-bench mode requires network access. Set APEX_ALLOW_NETWORK=1 to enable."
+                )
+            if split is None:
+                raise ValueError("split required for SWE mode (dev or test)")
+            if cache_dir is None:
+                cache_dir = Path("~/.cache/apex/swe_bench").expanduser()
+
+            self.split = split
+            self.cache_dir = cache_dir
+            self.work_dir = Path.cwd() / "work" / "swe_bench"
+            self.repo_manager = RepoManager(self.work_dir)
 
     def load_tasks(self, n_episodes: Optional[int] = None) -> List[Task]:
         """Load tasks based on mode."""
@@ -100,6 +123,29 @@ class EvalHarness:
                 return tasks[:n_episodes]
             else:
                 return base_tasks[:n_episodes] if n_episodes else base_tasks
+        elif self.mode == "swe":
+            # Load SWE-bench Lite tasks
+            provider = SWELiteProvider(self.split, self.cache_dir, limit=n_episodes)
+            tasks = []
+            for eval_task in provider:
+                # Convert EvalTask to Task for compatibility
+                # Note: SWE tasks don't have predetermined success or preferences
+                task = Task(
+                    task_id=eval_task.task_id,
+                    description=eval_task.problem[:200],  # Truncate for Task
+                    expected_success=False,  # Will be determined by test execution
+                    token_cost=0,  # Will be tracked during execution
+                    topology_preference=None,  # No preference for SWE tasks
+                    metadata={
+                        "repo": eval_task.repo,
+                        "commit": eval_task.base_commit,
+                        "test_patch": eval_task.test_patch,
+                        "patch": eval_task.patch,
+                        "hints": eval_task.hints,
+                    },
+                )
+                tasks.append(task)
+            return tasks
         else:
             raise NotImplementedError(f"Mode {self.mode} not implemented")
 
@@ -115,7 +161,7 @@ class EvalHarness:
 
         Args:
             task: Task to execute
-            policy: Policy name (static_star, static_chain, static_flat, bandit_v1)
+            policy: Policy name (static_star, static_chain, static_flat, apex_dynamic)
             budget: Token budget for this episode
             switch: Optional switch for dynamic policies
             bandit: Optional bandit for dynamic policies
@@ -123,13 +169,17 @@ class EvalHarness:
         Returns:
             TaskResult with success/failure and token usage
         """
+        if self.mode == "swe":
+            return self._run_swe_episode(task, policy, budget, switch, bandit)
+
+        # Stub mode execution
         epoch_switches = 0
 
         # Simulate task execution based on policy
         if policy.startswith("static_"):
             topology = policy.replace("static_", "")
             tokens_used = self._simulate_static_execution(task, topology)
-        elif policy == "bandit_v1":
+        elif policy in ["bandit_v1", "apex_dynamic"]:
             if switch is None:
                 # Create default switch for bandit
                 switch = TopologySwitch(initial="star", seed=self.seed)
@@ -233,3 +283,151 @@ class EvalHarness:
             total_tokens = int(total_tokens * (1 - savings))
 
         return total_tokens, epoch_switches
+
+    def _run_swe_episode(
+        self,
+        task: Task,
+        policy: str,
+        budget: int,
+        switch: Optional[TopologySwitch] = None,
+        bandit: Optional[BanditSwitchV1] = None,
+    ) -> TaskResult:
+        """Run SWE-bench episode with real repository checkout and test execution.
+
+        Args:
+            task: Task containing SWE-bench metadata
+            policy: Policy name
+            budget: Token budget (10k default)
+            switch: Optional switch for dynamic policies
+            bandit: Optional bandit for dynamic policies
+
+        Returns:
+            TaskResult with test execution results
+        """
+        start_time = time.time()
+        metadata = task.metadata
+        repo = metadata["repo"]
+        commit = metadata["commit"]
+        test_patch = metadata["test_patch"]
+
+        # Track execution details
+        topology_trace = []
+        switches = 0
+        budget_denied = 0
+
+        # Prepare repository checkout
+        try:
+            repo_path = self.repo_manager.prepare_checkout(repo, commit)
+        except Exception as e:
+            # Repository preparation failed
+            return TaskResult(
+                task_id=task.task_id,
+                policy=policy,
+                success=False,
+                tokens_used=0,
+                over_budget=False,
+                budget=budget,
+                seed=self.seed,
+                epoch_switches=0,
+                notes=f"repo_setup_failed: {e}",
+            )
+
+        # Apply test patch
+        patch_applied = self.repo_manager.apply_patch(repo_path, test_patch, "test")
+        if not patch_applied:
+            # Test patch failed to apply
+            return TaskResult(
+                task_id=task.task_id,
+                policy=policy,
+                success=False,
+                tokens_used=0,
+                over_budget=False,
+                budget=budget,
+                seed=self.seed,
+                epoch_switches=0,
+                notes="test_patch_apply_failed",
+            )
+
+        # Simulate agent execution with topology switching
+        # For MVP, we'll use a simple token counter
+        tokens_used = 0
+
+        if policy.startswith("static_"):
+            topology = policy.replace("static_", "")
+            # Simulate static execution
+            tokens_used = self.rng.randint(3000, 9000)  # Random cost for MVP
+            topology_trace.append({"tick": 0, "topo": topology, "dwell": 1, "cooldown": 0})
+
+        elif policy == "apex_dynamic":
+            if switch is None:
+                switch = TopologySwitch(initial="star", seed=self.seed)
+            if bandit is None:
+                bandit = BanditSwitchV1(d=8, seed=self.seed)
+
+            # Simulate dynamic execution with switches
+            steps = self.rng.randint(3, 7)
+            for step in range(steps):
+                active = switch.active()
+                topology_trace.append(
+                    {
+                        "tick": step,
+                        "topo": active.topology,
+                        "dwell": active.dwell,
+                        "cooldown": active.cooldown,
+                    }
+                )
+
+                # Simulate token usage
+                step_tokens = self.rng.randint(1000, 2000)
+                if tokens_used + step_tokens > budget:
+                    budget_denied += 1
+                    break
+                tokens_used += step_tokens
+
+                # Maybe switch topology
+                if step < steps - 1:
+                    x = [self.rng.random() for _ in range(8)]
+                    action = bandit.decide(x)["action"]
+                    reward = self.rng.random()
+                    bandit.update(x, action, reward)
+
+                    action_map = {0: "stay", 1: "star", 2: "chain", 3: "flat"}
+                    if action != 0:
+                        old_epoch = active.epoch
+                        switch.commit(action_map[action])
+                        if switch.active().epoch != old_epoch:
+                            switches += 1
+
+        # Run tests to determine success
+        test_success, test_output = self.repo_manager.run_tests(repo_path)
+
+        # Check budget violation
+        over_budget = tokens_used > budget
+
+        # Success@Budget: tests pass AND under budget
+        success = test_success and not over_budget
+
+        episode_ms = (time.time() - start_time) * 1000
+
+        # Return extended result for SWE mode
+        result = TaskResult(
+            task_id=task.task_id,
+            policy=policy,
+            success=success,
+            tokens_used=tokens_used,
+            over_budget=over_budget,
+            budget=budget,
+            seed=self.seed,
+            epoch_switches=switches,
+            notes=f"swe_mode,tests_{'passed' if test_success else 'failed'}",
+        )
+
+        # Add SWE-specific fields to metadata
+        result.metadata = {
+            "budget_denied": budget_denied,
+            "topology_trace": topology_trace,
+            "switches": switches,
+            "episode_ms": episode_ms,
+        }
+
+        return result

@@ -32,6 +32,19 @@ def validate_jsonl(filepath: Path):
 
 
 def main():
+    if len(sys.argv) > 1:
+        # Validate specific file provided as argument
+        filepath = Path(sys.argv[1])
+        valid, count, msg = validate_jsonl(filepath)
+        
+        status = "✅ VALID" if valid else "❌ INVALID"
+        print(f"{filepath.name:30} {status:10} {count:3} objects")
+        if not valid:
+            print(f"  Error: {msg}")
+            return 1
+        return 0
+    
+    # Default behavior for A3 artifacts
     artifacts_dir = Path("docs/A3/artifacts")
     files = [
         "agents_star_trace.jsonl",
