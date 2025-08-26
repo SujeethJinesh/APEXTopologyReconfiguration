@@ -61,6 +61,12 @@ def main():
         action="store_true",
         help="Apply gold patch for validation testing"
     )
+    parser.add_argument(
+        "--task-list",
+        type=str,
+        default=None,
+        help="Path to frozen task list JSONL (ensures identical tasks across policies)"
+    )
     
     args = parser.parse_args()
     
@@ -71,6 +77,18 @@ def main():
             print("Either set APEX_ALLOW_NETWORK=1 or use --offline with fixtures.")
             sys.exit(1)
     
+    # Load task list if provided
+    task_list = None
+    if args.task_list:
+        task_list = []
+        with open(args.task_list, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    entry = json.loads(line)
+                    task_list.append(entry["task_id"])
+        print(f"Loaded task list with {len(task_list)} tasks from {args.task_list}")
+    
     # Initialize harness
     harness = EvalHarness(
         mode=args.mode,
@@ -79,10 +97,15 @@ def main():
         limit=args.limit,
         offline=args.offline,
         oracle_smoke=args.oracle_smoke,
+        task_list=task_list,  # Pass frozen task list if provided
     )
     
     # Load tasks
-    tasks = harness.load_tasks(n_episodes=args.episodes)
+    if task_list:
+        # When using task list, episodes should match task list length
+        tasks = harness.load_tasks(n_episodes=len(task_list))
+    else:
+        tasks = harness.load_tasks(n_episodes=args.episodes)
     
     # Setup switch and bandit for dynamic policy
     switch = None

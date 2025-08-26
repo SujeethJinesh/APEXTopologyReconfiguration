@@ -67,6 +67,7 @@ class EvalHarness:
         limit: Optional[int] = None,
         offline: bool = False,
         oracle_smoke: bool = False,
+        task_list: Optional[List[str]] = None,
     ):
         """Initialize harness.
 
@@ -77,6 +78,7 @@ class EvalHarness:
             limit: Optional limit on number of tasks
             offline: If True, only use local cache (no network)
             oracle_smoke: If True, apply gold patch for validation
+            task_list: Optional list of task IDs to use (ensures consistent evaluation)
         """
         self.mode = mode
         self.seed = seed
@@ -84,6 +86,7 @@ class EvalHarness:
         self.limit = limit
         self.offline = offline
         self.oracle_smoke = oracle_smoke
+        self.task_list = task_list
         self.rng = random.Random(seed)  # Use instance RNG for determinism
 
         if mode not in ["stub", "swe"]:
@@ -107,6 +110,37 @@ class EvalHarness:
         """Load tasks based on mode."""
         if self.mode == "stub":
             base_tasks = StubTask.generate_stub_tasks()
+
+            # If task_list is provided, use it to filter/order tasks
+            if self.task_list:
+                filtered_tasks = []
+                # Create a mapping of base task IDs
+                task_map = {t.task_id: t for t in base_tasks}
+
+                for task_id in self.task_list:
+                    # Handle both base IDs and repetition suffixes
+                    if "__rep_" in task_id:
+                        base_id = task_id.split("__rep_")[0]
+                        if base_id in task_map:
+                            # Create a copy with the repetition suffix
+                            base_task = task_map[base_id]
+                            rep_task = Task(
+                                task_id=task_id,
+                                description=base_task.description,
+                                expected_success=base_task.expected_success,
+                                token_cost=base_task.token_cost,
+                                topology_preference=base_task.topology_preference,
+                                metadata=base_task.metadata,
+                            )
+                            filtered_tasks.append(rep_task)
+                    elif task_id in task_map:
+                        filtered_tasks.append(task_map[task_id])
+                    else:
+                        print(f"Warning: Task {task_id} not found in base tasks")
+
+                return filtered_tasks[:n_episodes] if n_episodes else filtered_tasks
+
+            # Original logic when no task_list is provided
             if n_episodes and n_episodes > len(base_tasks):
                 # Extend with uniquely suffixed task IDs
                 tasks = []
@@ -136,7 +170,8 @@ class EvalHarness:
             swe_records = self.provider.load(split=self.split, limit=limit, offline=self.offline)
 
             # Convert SWERecords to Tasks
-            tasks = []
+            all_tasks = []
+            task_map = {}
             for record in swe_records:
                 # Create Task with SWE metadata
                 task = Task(
@@ -151,8 +186,20 @@ class EvalHarness:
                         "base_commit": record.base_commit[:8],
                     },
                 )
-                tasks.append(task)
-            return tasks
+                all_tasks.append(task)
+                task_map[record.task_id] = task
+
+            # Filter by task_list if provided
+            if self.task_list:
+                filtered_tasks = []
+                for task_id in self.task_list:
+                    if task_id in task_map:
+                        filtered_tasks.append(task_map[task_id])
+                    else:
+                        print(f"Warning: Task {task_id} not found in SWE records")
+                return filtered_tasks
+
+            return all_tasks
         else:
             raise ValueError(f"Unknown mode: {self.mode}")
 

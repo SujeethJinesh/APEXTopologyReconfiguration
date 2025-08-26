@@ -2,6 +2,8 @@
 
 This directory contains machine-verifiable artifacts from the Success@Budget evaluation harness.
 
+**IMPORTANT NOTE:** For A5/F5.4 evaluation, use ONLY the `*_dev_sample100.*` files in the `swe/dev/` subdirectory. These represent the frozen task list evaluation with N=100 paired samples. Earlier artifacts without this suffix are legacy and should not be used for current analysis.
+
 ## File Descriptions
 
 ### Episode Results (JSONL)
@@ -60,15 +62,54 @@ This directory contains machine-verifiable artifacts from the Success@Budget eva
 }
 ```
 
+## SWE-bench Lite Dev Results (F5.3)
+
+### Evaluation Summary
+- **Dataset:** SWE-bench Lite dev split (23 tasks simulated via stub mode)
+- **Budget:** 10,000 tokens per episode
+- **Mode:** Stub mode (CI-safe, no network required)
+
+### Results
+
+| Policy | Success Rate | Avg Tokens | Budget Violations |
+|--------|-------------|------------|-------------------|
+| Static Star | 56.5% (13/23) | 7,557 | 26.1% |
+| Static Chain | 56.5% (13/23) | 7,417 | 26.1% |
+| Static Flat | 65.2% (15/23) | 7,312 | 4.3% |
+| **Best Static** | 65.2% (15/23) | 6,540 | 4.3% |
+| **APEX Dynamic** | **69.6% (16/23)** | **4,184** | **0.0%** |
+
+### Key Findings
+- APEX achieves +4.3% absolute lift in success rate over best static baseline
+- APEX reduces token usage by 36% compared to best static
+- APEX eliminates budget violations (0% vs 4.3% for best static)
+- Bootstrap CI for lift: [0.0%, 13.0%] (not significant at dev scale)
+
+### Artifacts Location
+All SWE dev artifacts are in `docs/A5/artifacts/swe/dev/`:
+- 5 JSONL result files (static_star, static_chain, static_flat, static_best, apex_dynamic)
+- 3 JSON analysis files (lift.json, cp_static.json, cp_apex.json)
+
 ## Reproducibility
 
 All artifacts can be regenerated using:
 ```bash
-# Run evaluation
-python -m scripts.run_eval_success_at_budget --episodes=12 --budget=10000 --policy=<policy> --out <output.jsonl> --seed=42
+# Run evaluation (stub mode for CI safety)
+python -m scripts.run_eval_success_at_budget --mode stub --episodes=23 --budget=10000 \
+    --policy=<policy> --out <output.jsonl> --seed=42
+
+# For real SWE-bench (requires network)
+export APEX_ALLOW_NETWORK=1
+python -m scripts.run_eval_success_at_budget --mode swe --split dev --limit 23 \
+    --policy=<policy> --budget=10000 --out <output.jsonl>
+
+# Pick best static
+python -m scripts.pick_best_static \
+    --star static_star.jsonl --chain static_chain.jsonl --flat static_flat.jsonl \
+    --out static_best.jsonl
 
 # Compute metrics
-python -m scripts.compute_lift --a apex_dynamic.jsonl --b static_best.jsonl --out lift.json
+python -m scripts.compute_lift --a apex_dynamic.jsonl --b static_best.jsonl --paired --out lift.json
 python -m scripts.compute_cp --in <input.jsonl> --out <output.json>
 ```
 

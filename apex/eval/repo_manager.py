@@ -118,7 +118,132 @@ class RepoManager:
             if not success:
                 raise RuntimeError("Failed to apply gold patch in oracle mode")
 
+        # Environment bootstrap
+        env_status = RepoManager.bootstrap_environment(repo_path)
+        if not env_status["success"]:
+            print(
+                f"Warning: Environment bootstrap failed for {record.task_id}: "
+                f"{env_status.get('error', 'Unknown error')}"
+            )
+
         return repo_path
+
+    @staticmethod
+    def bootstrap_environment(repo_path: Path, use_venv: bool = True) -> dict:
+        """Bootstrap repository environment (install dependencies).
+
+        Args:
+            repo_path: Path to repository
+            use_venv: If True, create per-task virtual environment
+
+        Returns:
+            Dict with "success" bool, "steps" list, and optional "error" string
+        """
+        import platform
+        import sys
+
+        steps = []
+        pip_cmd = ["pip"]
+
+        try:
+            # Create per-task venv if requested
+            if use_venv:
+                env_dir = repo_path / ".apex_venv"
+                if not env_dir.exists():
+                    result = subprocess.run(
+                        [sys.executable, "-m", "venv", str(env_dir)],
+                        capture_output=True,
+                        text=True,
+                    )
+                    steps.append(f"Create venv at {env_dir} (exit {result.returncode})")
+
+                    if result.returncode == 0:
+                        # Use venv pip
+                        if platform.system() == "Windows":
+                            pip_cmd = [str(env_dir / "Scripts" / "pip.exe")]
+                        else:
+                            pip_cmd = [str(env_dir / "bin" / "pip")]
+
+                        # Upgrade pip/setuptools
+                        result = subprocess.run(
+                            pip_cmd + ["install", "-U", "pip", "wheel", "setuptools"],
+                            capture_output=True,
+                            text=True,
+                            timeout=60,
+                        )
+                        steps.append(f"Upgrade pip/wheel/setuptools (exit {result.returncode})")
+
+            # Check for setup files
+            has_pyproject = (repo_path / "pyproject.toml").exists()
+            has_setup_py = (repo_path / "setup.py").exists()
+            has_requirements = (repo_path / "requirements.txt").exists()
+
+            # Try to install the package itself if setup file exists
+            if has_pyproject or has_setup_py:
+                result = subprocess.run(
+                    pip_cmd + ["install", "-e", "."],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                )
+                steps.append(f"pip install -e . (exit {result.returncode})")
+
+                if result.returncode != 0:
+                    # Try without -e flag as fallback
+                    result = subprocess.run(
+                        pip_cmd + ["install", "."],
+                        cwd=repo_path,
+                        capture_output=True,
+                        text=True,
+                        timeout=120,
+                    )
+                    steps.append(f"pip install . (exit {result.returncode})")
+
+            # Install requirements if present
+            if has_requirements:
+                result = subprocess.run(
+                    pip_cmd + ["install", "-r", "requirements.txt"],
+                    cwd=repo_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                )
+                steps.append(f"pip install -r requirements.txt (exit {result.returncode})")
+
+            # Log environment if using venv
+            if use_venv and pip_cmd != ["pip"]:
+                try:
+                    freeze_out = subprocess.check_output(
+                        pip_cmd + ["freeze"],
+                        cwd=repo_path,
+                        text=True,
+                        timeout=30,
+                    )
+                    artifacts_dir = repo_path.parent / "artifacts"
+                    if artifacts_dir.exists():
+                        (artifacts_dir / "pip_freeze.txt").write_text(freeze_out, encoding="utf-8")
+                    steps.append("Environment logged to pip_freeze.txt")
+                except Exception:
+                    pass  # Non-critical
+
+            return {
+                "success": True,
+                "steps": steps,
+            }
+
+        except subprocess.TimeoutExpired:
+            return {
+                "success": False,
+                "steps": steps,
+                "error": "Environment bootstrap timed out",
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "steps": steps,
+                "error": str(e),
+            }
 
     @staticmethod
     def apply_patch(repo_path: Path, patch_str: str) -> bool:
@@ -148,6 +273,7 @@ class RepoManager:
                 text=True,
             )
 
+            patch_strategy = "p0"
             if result.returncode == 0:
                 return True
 
@@ -174,11 +300,46 @@ class RepoManager:
                 text=True,
             )
 
+            patch_strategy = "p1"
             if result.returncode == 0:
+                print(f"Patch applied using strategy: {patch_strategy}")
                 return True
 
-            # Log failure
-            print(f"Patch application failed: {result.stderr[:500]}")
+            # Reset again for 3-way attempt
+            subprocess.run(
+                ["git", "reset", "--hard", "HEAD"],
+                cwd=repo_path,
+                capture_output=True,
+                check=False,
+            )
+            subprocess.run(
+                ["git", "clean", "-xdf"],
+                cwd=repo_path,
+                capture_output=True,
+                check=False,
+            )
+
+            # Try 3-way merge as last resort
+            result_3way = subprocess.run(
+                ["git", "apply", "--3way", "--reject", "--whitespace=nowarn", patch_file],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+            )
+
+            if result_3way.returncode == 0:
+                print("Patch applied using strategy: 3way")
+                return True
+
+            # Log failure - persist to artifacts if available
+            stderr_log = f"p0/p1/3way all failed\n\n--- stderr ---\n{result_3way.stderr}\n"
+            print(f"Patch application failed (tried p0, p1, 3way): {result_3way.stderr[:500]}")
+
+            # Try to save to artifacts dir if it exists
+            artifacts_dir = repo_path.parent / "artifacts"
+            if artifacts_dir.exists():
+                (artifacts_dir / "git_apply_stderr.txt").write_text(stderr_log, encoding="utf-8")
+
             return False
 
         finally:
@@ -206,10 +367,22 @@ class RepoManager:
             - exit_code: pytest exit code
             - duration_s: execution time in seconds
         """
+        import platform
+
         start_time = time.time()
 
-        # Build pytest command
-        cmd = ["pytest", "-q"]
+        # Check for per-task venv and use its pytest if available
+        venv_dir = repo_path / ".apex_venv"
+        if venv_dir.exists():
+            if platform.system() == "Windows":
+                pytest_cmd = str(venv_dir / "Scripts" / "python.exe")
+            else:
+                pytest_cmd = str(venv_dir / "bin" / "python")
+            # Use venv python with -m pytest to ensure correct environment
+            cmd = [pytest_cmd, "-m", "pytest", "-q"]
+        else:
+            # Fall back to system pytest
+            cmd = ["pytest", "-q"]
 
         # If specific tests selected, use -k to filter
         if test_select and len(test_select) > 0:
