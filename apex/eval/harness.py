@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import os
 import random
+import tempfile
+from pathlib import Path
 from typing import List, Optional, Tuple
 
 from apex.controller.bandit_v1 import BanditSwitchV1
 from apex.eval.stubs.topology_switch import TopologySwitch
 
+from .providers.swe_lite import SWELiteProvider, SWERecord
+from .repo_manager import RepoManager
 from .task import Task, TaskResult
 
 
@@ -54,24 +59,49 @@ class StubTask:
 class EvalHarness:
     """Main evaluation harness for Success@Budget metric."""
 
-    def __init__(self, mode: str = "stub", seed: int = 42):
+    def __init__(
+        self,
+        mode: str = "stub",
+        seed: int = 42,
+        split: str = "dev",
+        limit: Optional[int] = None,
+        offline: bool = False,
+        oracle_smoke: bool = False,
+    ):
         """Initialize harness.
 
         Args:
             mode: "stub" for fast CI testing, "swe" for SWE-bench Lite
             seed: Random seed for reproducibility
+            split: Dataset split for SWE mode ("dev" or "test")
+            limit: Optional limit on number of tasks
+            offline: If True, only use local cache (no network)
+            oracle_smoke: If True, apply gold patch for validation
         """
         self.mode = mode
         self.seed = seed
+        self.split = split
+        self.limit = limit
+        self.offline = offline
+        self.oracle_smoke = oracle_smoke
         self.rng = random.Random(seed)  # Use instance RNG for determinism
 
         if mode not in ["stub", "swe"]:
             raise ValueError(f"Invalid mode: {mode}. Use 'stub' or 'swe'")
 
+        # Network gating for SWE mode
+        if mode == "swe" and not offline:
+            if os.getenv("APEX_ALLOW_NETWORK") != "1":
+                raise RuntimeError(
+                    "SWE mode requires network access. "
+                    "Set APEX_ALLOW_NETWORK=1 or use --offline with fixtures."
+                )
+
+        # Initialize provider for SWE mode
         if mode == "swe":
-            raise NotImplementedError(
-                "SWE-bench mode not enabled in CI. Set environment flag to enable."
-            )
+            cache_dir = Path.home() / ".cache" / "apex" / "swe_bench"
+            self.provider = SWELiteProvider(cache_dir=str(cache_dir))
+            self.work_root = Path(tempfile.mkdtemp(prefix="apex_swe_"))
 
     def load_tasks(self, n_episodes: Optional[int] = None) -> List[Task]:
         """Load tasks based on mode."""
@@ -100,8 +130,31 @@ class EvalHarness:
                 return tasks[:n_episodes]
             else:
                 return base_tasks[:n_episodes] if n_episodes else base_tasks
+        elif self.mode == "swe":
+            # Load SWE-bench Lite tasks
+            limit = n_episodes or self.limit
+            swe_records = self.provider.load(split=self.split, limit=limit, offline=self.offline)
+
+            # Convert SWERecords to Tasks
+            tasks = []
+            for record in swe_records:
+                # Create Task with SWE metadata
+                task = Task(
+                    task_id=record.task_id,
+                    description=record.problem_statement[:200],  # Truncate for display
+                    expected_success=None,  # Will be determined by test execution
+                    token_cost=0,  # Will be measured during execution
+                    topology_preference="star",  # Default preference
+                    metadata={
+                        "swe_record": record,  # Store full record for execution
+                        "repo": record.repo,
+                        "base_commit": record.base_commit[:8],
+                    },
+                )
+                tasks.append(task)
+            return tasks
         else:
-            raise NotImplementedError(f"Mode {self.mode} not implemented")
+            raise ValueError(f"Unknown mode: {self.mode}")
 
     def run_episode(
         self,
@@ -125,19 +178,31 @@ class EvalHarness:
         """
         epoch_switches = 0
 
-        # Simulate task execution based on policy
-        if policy.startswith("static_"):
-            topology = policy.replace("static_", "")
-            tokens_used = self._simulate_static_execution(task, topology)
-        elif policy == "bandit_v1":
-            if switch is None:
-                # Create default switch for bandit
-                switch = TopologySwitch(initial="star", seed=self.seed)
-            if bandit is None:
-                bandit = BanditSwitchV1(d=8, seed=self.seed)
-            tokens_used, epoch_switches = self._simulate_dynamic_execution(task, switch, bandit)
+        # Handle SWE mode differently
+        if self.mode == "swe":
+            # Run actual SWE-bench task
+            if "swe_record" not in task.metadata:
+                raise ValueError(f"Task {task.task_id} missing SWE record in metadata")
+
+            swe_record = task.metadata["swe_record"]
+            success, tokens_used = self._run_swe_episode(swe_record, budget)
+
+            # For SWE mode, success is determined by test execution
+            task.expected_success = success
         else:
-            raise ValueError(f"Unknown policy: {policy}")
+            # Simulate task execution based on policy (stub mode)
+            if policy.startswith("static_"):
+                topology = policy.replace("static_", "")
+                tokens_used = self._simulate_static_execution(task, topology)
+            elif policy == "bandit_v1":
+                if switch is None:
+                    # Create default switch for bandit
+                    switch = TopologySwitch(initial="star", seed=self.seed)
+                if bandit is None:
+                    bandit = BanditSwitchV1(d=8, seed=self.seed)
+                tokens_used, epoch_switches = self._simulate_dynamic_execution(task, switch, bandit)
+            else:
+                raise ValueError(f"Unknown policy: {policy}")
 
         # Check budget violation
         over_budget = tokens_used > budget
@@ -154,7 +219,7 @@ class EvalHarness:
             budget=budget,
             seed=self.seed,
             epoch_switches=epoch_switches,
-            notes=f"topology_pref={task.topology_preference}",
+            notes=f"mode={self.mode},topology_pref={task.topology_preference}",
         )
 
     def _simulate_static_execution(self, task: Task, topology: str) -> int:
@@ -233,3 +298,51 @@ class EvalHarness:
             total_tokens = int(total_tokens * (1 - savings))
 
         return total_tokens, epoch_switches
+
+    def _run_swe_episode(self, record: SWERecord, budget_tokens: int) -> Tuple[bool, int]:
+        """Run a SWE-bench episode with actual repository and tests.
+
+        Args:
+            record: SWERecord with task details
+            budget_tokens: Token budget for this episode
+
+        Returns:
+            (success, tokens_used) tuple
+        """
+        try:
+            # Prepare workspace with repository at base commit
+            repo_path = RepoManager.prepare_workspace(
+                record=record,
+                work_root=str(self.work_root),
+                oracle=self.oracle_smoke,  # Apply gold patch in oracle mode
+            )
+
+            # Run tests - prioritize FAIL_TO_PASS tests
+            test_result = RepoManager.run_tests(
+                repo_path=repo_path,
+                test_select=record.fail_to_pass if record.fail_to_pass else None,
+                timeout_s=180,
+            )
+
+            # Check success: all selected tests must pass
+            success = test_result["exit_code"] == 0 and test_result["failed"] == 0
+
+            # Token accounting for SWE mode
+            # TODO: When agents/LLM are integrated, aggregate actual token usage
+            # For now, use heuristic based on test execution time:
+            # - 100 tokens per second of test execution (rough estimate)
+            # - 1000 base tokens for repository setup overhead
+            # In oracle-smoke mode, this represents the "ground truth" cost
+            tokens_used = int(test_result["duration_s"] * 100) + 1000
+
+            return success, tokens_used
+
+        except Exception as e:
+            # Log error and treat as failure
+            print(f"Error in SWE episode {record.task_id}: {e}")
+            return False, budget_tokens  # Use full budget on error
+
+    def cleanup(self):
+        """Clean up workspace after evaluation."""
+        if hasattr(self, "work_root") and self.work_root.exists():
+            RepoManager.cleanup_workspace(str(self.work_root))

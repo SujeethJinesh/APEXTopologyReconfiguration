@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -28,13 +29,57 @@ def main():
     )
     parser.add_argument("--out", type=str, required=True, help="Output JSONL file")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
-    parser.add_argument("--swe", action="store_true", help="Use SWE-bench mode (not in CI)")
+    
+    # Mode selection
+    parser.add_argument(
+        "--mode",
+        choices=["stub", "swe"],
+        default="stub",
+        help="Evaluation mode: stub (CI) or swe (SWE-bench Lite)"
+    )
+    
+    # SWE-specific options
+    parser.add_argument(
+        "--split",
+        choices=["dev", "test"],
+        default="dev",
+        help="SWE-bench Lite split to use (dev=23, test=300 tasks)"
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Limit number of tasks from dataset"
+    )
+    parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="Use local cache only, no network access"
+    )
+    parser.add_argument(
+        "--oracle-smoke",
+        action="store_true",
+        help="Apply gold patch for validation testing"
+    )
     
     args = parser.parse_args()
     
+    # Network gating check for SWE mode
+    if args.mode == "swe" and not args.offline:
+        if os.getenv("APEX_ALLOW_NETWORK") != "1":
+            print("Error: SWE mode requires network access.")
+            print("Either set APEX_ALLOW_NETWORK=1 or use --offline with fixtures.")
+            sys.exit(1)
+    
     # Initialize harness
-    mode = "swe" if args.swe else "stub"
-    harness = EvalHarness(mode=mode, seed=args.seed)
+    harness = EvalHarness(
+        mode=args.mode,
+        seed=args.seed,
+        split=args.split,
+        limit=args.limit,
+        offline=args.offline,
+        oracle_smoke=args.oracle_smoke,
+    )
     
     # Load tasks
     tasks = harness.load_tasks(n_episodes=args.episodes)
@@ -84,6 +129,10 @@ def main():
         print(f"Total epoch switches: {total_switches}")
     
     print(f"Output written to: {output_path}")
+    
+    # Clean up SWE workspace if used
+    if args.mode == "swe":
+        harness.cleanup()
 
 
 if __name__ == "__main__":
