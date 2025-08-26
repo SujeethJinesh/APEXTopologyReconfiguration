@@ -30,16 +30,16 @@ def _parse_test_list(value) -> list[str]:
     """Parse FAIL_TO_PASS/PASS_TO_PASS from various formats."""
     if not value:
         return []
-    
+
     # If it's already a list, return it
     if isinstance(value, list):
         return [str(t) for t in value]
-    
+
     # If it's a string, try to parse
     value = str(value).strip()
     if not value or value == "[]":
         return []
-    
+
     # Try JSON parse first
     if value.startswith("["):
         try:
@@ -47,7 +47,7 @@ def _parse_test_list(value) -> list[str]:
             return [str(t) for t in parsed] if isinstance(parsed, list) else []
         except (json.JSONDecodeError, ValueError):
             pass
-    
+
     # Fallback: split by whitespace/commas
     tokens = re.split(r"[\s,]+", value)
     return [t.strip() for t in tokens if t.strip()]
@@ -62,10 +62,15 @@ class SWELiteProvider:
         Args:
             cache_dir: Directory for caching dataset files
         """
-        self.cache_dir = Path(cache_dir) if cache_dir else Path.home() / ".cache" / "apex" / "swe_bench"
+        if cache_dir:
+            self.cache_dir = Path(cache_dir)
+        else:
+            self.cache_dir = Path.home() / ".cache" / "apex" / "swe_bench"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
-    def load(self, split: str = "dev", limit: Optional[int] = None, offline: bool = False) -> List[SWERecord]:
+    def load(
+        self, split: str = "dev", limit: Optional[int] = None, offline: bool = False
+    ) -> List[SWERecord]:
         """Load SWE-bench Lite tasks.
 
         Args:
@@ -85,10 +90,10 @@ class SWELiteProvider:
 
         # Try local cache first
         cache_file = self.cache_dir / f"swe_bench_lite_{split}.jsonl"
-        
+
         if cache_file.exists():
             return self._load_from_cache(cache_file, limit)
-        
+
         if offline:
             raise RuntimeError(
                 f"Dataset not found in cache: {cache_file}\n"
@@ -96,52 +101,56 @@ class SWELiteProvider:
                 f"1. Set offline=False and APEX_ALLOW_NETWORK=1 to download\n"
                 f"2. Place the dataset file at {cache_file}"
             )
-        
+
         # Check network permission
         if os.getenv("APEX_ALLOW_NETWORK") != "1":
             raise RuntimeError(
-                "Network access is disabled. Set APEX_ALLOW_NETWORK=1 to download dataset from Hugging Face."
+                "Network access is disabled. "
+                "Set APEX_ALLOW_NETWORK=1 to download dataset from Hugging Face."
             )
-        
+
         # Download from Hugging Face
         try:
             import datasets
         except ImportError:
-            raise ImportError(
-                "datasets library not installed. Install with: pip install datasets"
-            )
-        
+            raise ImportError("datasets library not installed. Install with: pip install datasets")
+
         # Load from Hugging Face with exact dataset name
         dataset = datasets.load_dataset(
             "princeton-nlp/SWE-bench_Lite",  # Note: underscore, not hyphen
             split=split,
             cache_dir=str(self.cache_dir),
         )
-        
+
         # Cache locally for future use
         records = []
         with open(cache_file, "w") as f:
             for i, row in enumerate(dataset):
                 if limit and i >= limit:
                     break
-                    
+
                 record = self._parse_row(row)
                 records.append(record)
-                
+
                 # Write to cache in JSONL format
-                f.write(json.dumps({
-                    "instance_id": record.task_id,
-                    "repo": record.repo,
-                    "base_commit": record.base_commit,
-                    "environment_setup_commit": record.env_setup_commit,
-                    "patch": record.patch,
-                    "test_patch": record.test_patch,
-                    "FAIL_TO_PASS": json.dumps(record.fail_to_pass),
-                    "PASS_TO_PASS": json.dumps(record.pass_to_pass),
-                    "problem_statement": record.problem_statement,
-                    "hints_text": record.hints_text,
-                }) + "\n")
-        
+                f.write(
+                    json.dumps(
+                        {
+                            "instance_id": record.task_id,
+                            "repo": record.repo,
+                            "base_commit": record.base_commit,
+                            "environment_setup_commit": record.env_setup_commit,
+                            "patch": record.patch,
+                            "test_patch": record.test_patch,
+                            "FAIL_TO_PASS": json.dumps(record.fail_to_pass),
+                            "PASS_TO_PASS": json.dumps(record.pass_to_pass),
+                            "problem_statement": record.problem_statement,
+                            "hints_text": record.hints_text,
+                        }
+                    )
+                    + "\n"
+                )
+
         return records
 
     def _load_from_cache(self, cache_file: Path, limit: Optional[int]) -> List[SWERecord]:
@@ -151,16 +160,16 @@ class SWELiteProvider:
             for i, line in enumerate(f):
                 if limit and i >= limit:
                     break
-                    
+
                 data = json.loads(line.strip())
                 record = self._parse_row(data)
                 records.append(record)
-        
+
         return records
 
     def _parse_row(self, row: dict) -> SWERecord:
         """Parse a dataset row into SWERecord.
-        
+
         Maps fields exactly from SWE-bench Lite schema:
         - instance_id → task_id
         - environment_setup_commit → env_setup_commit

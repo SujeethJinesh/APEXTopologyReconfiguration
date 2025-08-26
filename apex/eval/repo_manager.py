@@ -135,9 +135,7 @@ class RepoManager:
             return True  # Empty patch is considered success
 
         # Write patch to temp file
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".patch", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".patch", delete=False) as f:
             f.write(patch_str)
             patch_file = f.name
 
@@ -219,7 +217,7 @@ class RepoManager:
             test_expr = " or ".join(test_select)
             if len(test_expr) > 8192:
                 # Too long for -k, run without filter (slower)
-                print(f"Warning: Test list too long for -k, running all tests")
+                print("Warning: Test list too long for -k, running all tests")
             else:
                 cmd.extend(["-k", test_expr])
 
