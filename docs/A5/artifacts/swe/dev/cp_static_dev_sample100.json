@@ -4,5 +4,7 @@
   "cp_upper_95": 0.057354432893993806,
   "seed": 42,
   "confidence": 0.95,
-  "empirical_rate": 0.02
+  "empirical_rate": 0.02,
+  "source": "mock",
+  "input_file": "docs/A5/artifacts/swe/dev/static_best_dev_sample100.jsonl"
 }

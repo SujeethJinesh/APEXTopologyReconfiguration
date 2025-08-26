@@ -4,7 +4,12 @@
     "seed": 42,
     "paired_by": "task_id",
     "n_tasks": 100,
-    "paired": true
+    "paired": true,
+    "source": "mock",
+    "files": {
+      "a": "docs/A5/artifacts/swe/dev/apex_dynamic_dev_sample100.jsonl",
+      "b": "docs/A5/artifacts/swe/dev/static_best_dev_sample100.jsonl"
+    }
   },
   "results": {
     "lift_abs": -0.04,

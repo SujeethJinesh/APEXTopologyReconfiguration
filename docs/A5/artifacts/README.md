@@ -90,14 +90,26 @@ All SWE dev artifacts are in `docs/A5/artifacts/swe/dev/`:
 - 5 JSONL result files (static_star, static_chain, static_flat, static_best, apex_dynamic)
 - 3 JSON analysis files (lift.json, cp_static.json, cp_apex.json)
 
-## A5/F5.5 Evaluation Results
+## A5/F5.5 Evaluation Results (MOCK)
+
+> **⚠️ NOTE:** The F5.5 artifacts were generated using `scripts/run_swe_mock.py` for CI safety.
+> These are mock results, not real SWE-bench evaluations.
 
 ### Dataset
 - **SWE-bench Lite dev split:** 23 unique tasks repeated to N=100
 - **Frozen task list:** `task_list_dev_sample100.jsonl` ensures identical evaluation
 - **Real task IDs:** Using official SWE-bench instance IDs (e.g., `pylint-dev__astroid-1268`)
 
-### Results Summary
+### Mock Generation Commands
+```bash
+# All F5.5 JSONLs were generated with:
+python3 scripts/run_swe_mock.py --policy <policy_name> \
+  --task-list docs/A5/artifacts/swe/dev/task_list_dev_sample100.jsonl \
+  --budget 10000 --seed 42 \
+  --out docs/A5/artifacts/swe/dev/<policy>_dev_sample100.jsonl
+```
+
+### Results Summary (Mock)
 | Policy | Success@10k | Avg Tokens | Violations | CP Bound |
 |--------|------------|------------|------------|----------|
 | Static Star | 33.0% | 8,777 | 40.0% | — |
