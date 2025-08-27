@@ -38,12 +38,21 @@ def main():
     results_by_task = defaultdict(list)
     
     for result in star_results:
+        # Skip metadata lines
+        if "__meta__" in result:
+            continue
         results_by_task[result["task_id"]].append(result)
     
     for result in chain_results:
+        # Skip metadata lines
+        if "__meta__" in result:
+            continue
         results_by_task[result["task_id"]].append(result)
     
     for result in flat_results:
+        # Skip metadata lines
+        if "__meta__" in result:
+            continue
         results_by_task[result["task_id"]].append(result)
     
     # Pick best for each task
@@ -65,10 +74,11 @@ def main():
         successful = [c for c in static_candidates if c["success"]]
         
         if successful:
-            best = min(successful, key=lambda x: x["tokens_used"])
+            # Use correct field name: tokens_used_total
+            best = min(successful, key=lambda x: x.get("tokens_used_total", x.get("tokens_used", 0)))
         else:
             # All failed, pick one with lowest tokens
-            best = min(static_candidates, key=lambda x: x["tokens_used"])
+            best = min(static_candidates, key=lambda x: x.get("tokens_used_total", x.get("tokens_used", 0)))
         
         # Create best result with clear labeling
         best_result = best.copy()
@@ -84,7 +94,8 @@ def main():
             for c in static_candidates:
                 status = "✓" if c["success"] else "✗"
                 selected = "←BEST" if c == best else ""
-                print(f"  {c['policy']:12} {status} {c['tokens_used']:5} tokens {selected}")
+                tokens = c.get('tokens_used_total', c.get('tokens_used', 0))
+                print(f"  {c['policy']:12} {status} {tokens:5} tokens {selected}")
     
     # Sort by task_id for consistent output
     best_results.sort(key=lambda x: x["task_id"])
@@ -94,6 +105,23 @@ def main():
     output_path.parent.mkdir(parents=True, exist_ok=True)
     
     with open(output_path, "w") as f:
+        # Add metadata first
+        metadata = {
+            "__meta__": {
+                "source": "derived",
+                "generator": "pick_best_static.py",
+                "inputs": {
+                    "star": str(args.star),
+                    "chain": str(args.chain),
+                    "flat": str(args.flat)
+                },
+                "n_tasks": len(best_results)
+            }
+        }
+        json.dump(metadata, f)
+        f.write("\n")
+        
+        # Write results
         for result in best_results:
             json.dump(result, f)
             f.write("\n")
@@ -109,7 +137,7 @@ def main():
     success_rate = 100 * success_count / len(best_results) if best_results else 0
     print(f"Success rate: {success_count}/{len(best_results)} ({success_rate:.1f}%)")
     
-    avg_tokens = sum(r["tokens_used"] for r in best_results) / len(best_results) if best_results else 0
+    avg_tokens = sum(r.get("tokens_used_total", r.get("tokens_used", 0)) for r in best_results) / len(best_results) if best_results else 0
     print(f"Avg tokens: {avg_tokens:.0f}")
     
     print(f"\nOutput written to: {output_path}")

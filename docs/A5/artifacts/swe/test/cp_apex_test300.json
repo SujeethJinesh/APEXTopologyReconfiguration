@@ -1,0 +1,10 @@
+{
+  "violations": 0,
+  "total": 300,
+  "cp_upper_95": 0.00993608194445772,
+  "seed": 42,
+  "confidence": 0.95,
+  "empirical_rate": 0.0,
+  "source": "real",
+  "input_file": "docs/A5/artifacts/swe/test/apex_dynamic_test300.jsonl"
+}

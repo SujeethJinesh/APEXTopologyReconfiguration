@@ -78,9 +78,26 @@ def main():
     
     # Write to file - one object per line
     with open(output_path, "w") as f:
+        # Write task IDs
         for task_id in sampled_ids:
             json.dump({"task_id": task_id}, f)
             f.write("\n")
+        
+        # Write metadata as final line
+        metadata = {
+            "__meta__": {
+                "split": args.split,
+                "split_source": split_to_load,  # Actual HF split used
+                "dataset": namespace_used,
+                "seed": args.seed,
+                "n": len(sampled_ids),
+                "generated_by": "scripts/generate_real_task_list.py"
+            }
+        }
+        if args.use_test_as_dev:
+            metadata["__meta__"]["note"] = f"{args.n} tasks sampled from {split_to_load} split (dev only has 23 tasks)"
+        json.dump(metadata, f)
+        f.write("\n")
     
     print(f"\n✅ Generated task list with {len(sampled_ids)} unique tasks")
     print(f"   Namespace used: {namespace_used}")

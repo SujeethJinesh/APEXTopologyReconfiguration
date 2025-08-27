@@ -1,0 +1,10 @@
+{
+  "violations": 1,
+  "total": 300,
+  "cp_upper_95": 0.014334875736702144,
+  "seed": 42,
+  "confidence": 0.95,
+  "empirical_rate": 0.0033333333333333335,
+  "source": "real",
+  "input_file": "docs/A5/artifacts/swe/test/static_best_test300.jsonl"
+}
