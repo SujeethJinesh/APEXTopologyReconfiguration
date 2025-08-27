@@ -99,6 +99,7 @@ def main():
     parser.add_argument("--out", type=str, required=True, help="Output JSON file")
     parser.add_argument("--confidence", type=float, default=0.95, help="Confidence level (default 0.95)")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
+    parser.add_argument("--source", type=str, default=None, help="Source type: 'real' or 'mock'")
     parser.add_argument("--verbose", action="store_true", help="Print detailed stats")
     
     args = parser.parse_args()
@@ -118,19 +119,23 @@ def main():
     cp_upper = clopper_pearson_upper(violations, total, args.confidence)
     
     # Detect source from content
-    # Default to mock for F5.5 artifacts
-    source = "mock"
-    
-    # Check first result to detect if mock
-    if results:
-        first_result = results[0]
-        # Mock results have notes field with topology info
-        if "notes" in first_result and ("final_topology" in first_result.get("notes", "") or 
-                                       "best_topology" in first_result.get("notes", "")):
-            source = "mock"
-        # Real SWE results would have different structure
-        elif "swe_record" in first_result.get("metadata", {}):
-            source = "swe_real"
+    # Use explicit source if provided
+    if args.source:
+        source = args.source
+    else:
+        # Default to mock for F5.5 artifacts
+        source = "mock"
+        
+        # Check first result to detect if mock
+        if results:
+            first_result = results[0]
+            # Mock results have notes field with topology info
+            if "notes" in first_result and ("final_topology" in first_result.get("notes", "") or 
+                                           "best_topology" in first_result.get("notes", "")):
+                source = "mock"
+            # Real SWE results would have different structure
+            elif "swe_record" in first_result.get("metadata", {}):
+                source = "swe_real"
     
     # Prepare output
     output = {

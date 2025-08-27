@@ -165,7 +165,64 @@ class EvalHarness:
             else:
                 return base_tasks[:n_episodes] if n_episodes else base_tasks
         elif self.mode == "swe":
-            # Load SWE-bench Lite tasks
+            # When task_list is provided, we need to load from ALL splits to find tasks
+            # This handles the case where we use test split IDs but run with --split dev
+            if self.task_list:
+                # Load both splits to find all task IDs
+                all_task_map = {}
+
+                # Try test split first (300 tasks)
+                try:
+                    test_records = self.provider.load(
+                        split="test", limit=None, offline=self.offline
+                    )
+                    for record in test_records:
+                        task = Task(
+                            task_id=record.task_id,
+                            description=record.problem_statement[:200],
+                            expected_success=None,
+                            token_cost=0,
+                            topology_preference="star",
+                            metadata={
+                                "swe_record": record,
+                                "repo": record.repo,
+                                "base_commit": record.base_commit[:8],
+                            },
+                        )
+                        all_task_map[record.task_id] = task
+                except Exception as e:
+                    print(f"Warning: Could not load test split: {e}")
+
+                # Also try dev split (23 tasks)
+                try:
+                    dev_records = self.provider.load(split="dev", limit=None, offline=self.offline)
+                    for record in dev_records:
+                        task = Task(
+                            task_id=record.task_id,
+                            description=record.problem_statement[:200],
+                            expected_success=None,
+                            token_cost=0,
+                            topology_preference="star",
+                            metadata={
+                                "swe_record": record,
+                                "repo": record.repo,
+                                "base_commit": record.base_commit[:8],
+                            },
+                        )
+                        all_task_map[record.task_id] = task
+                except Exception as e:
+                    print(f"Warning: Could not load dev split: {e}")
+
+                # Filter by task_list
+                filtered_tasks = []
+                for task_id in self.task_list:
+                    if task_id in all_task_map:
+                        filtered_tasks.append(all_task_map[task_id])
+                    else:
+                        print(f"Warning: Task {task_id} not found in any SWE split")
+                return filtered_tasks
+
+            # Original behavior when no task_list provided
             limit = n_episodes or self.limit
             swe_records = self.provider.load(split=self.split, limit=limit, offline=self.offline)
 
@@ -188,16 +245,6 @@ class EvalHarness:
                 )
                 all_tasks.append(task)
                 task_map[record.task_id] = task
-
-            # Filter by task_list if provided
-            if self.task_list:
-                filtered_tasks = []
-                for task_id in self.task_list:
-                    if task_id in task_map:
-                        filtered_tasks.append(task_map[task_id])
-                    else:
-                        print(f"Warning: Task {task_id} not found in SWE records")
-                return filtered_tasks
 
             return all_tasks
         else:

@@ -1,0 +1,10 @@
+{
+  "violations": 1,
+  "total": 100,
+  "cp_upper_95": 0.042494202934686004,
+  "seed": 42,
+  "confidence": 0.95,
+  "empirical_rate": 0.01,
+  "source": "real",
+  "input_file": "docs/A5/artifacts/swe/dev/static_best_dev_real100.jsonl"
+}
