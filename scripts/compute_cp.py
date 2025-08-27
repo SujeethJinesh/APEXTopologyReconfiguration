@@ -117,6 +117,21 @@ def main():
     # Compute CP upper bound
     cp_upper = clopper_pearson_upper(violations, total, args.confidence)
     
+    # Detect source from content
+    # Default to mock for F5.5 artifacts
+    source = "mock"
+    
+    # Check first result to detect if mock
+    if results:
+        first_result = results[0]
+        # Mock results have notes field with topology info
+        if "notes" in first_result and ("final_topology" in first_result.get("notes", "") or 
+                                       "best_topology" in first_result.get("notes", "")):
+            source = "mock"
+        # Real SWE results would have different structure
+        elif "swe_record" in first_result.get("metadata", {}):
+            source = "swe_real"
+    
     # Prepare output
     output = {
         "violations": violations,
@@ -124,7 +139,9 @@ def main():
         "cp_upper_95": cp_upper,
         "seed": args.seed,
         "confidence": args.confidence,
-        "empirical_rate": violations / total if total > 0 else 0.0
+        "empirical_rate": violations / total if total > 0 else 0.0,
+        "source": source,
+        "input_file": str(args.input)
     }
     
     # Write output

@@ -24,7 +24,7 @@ def main():
         help="Dataset split to use"
     )
     parser.add_argument(
-        "--limit",
+        "--limit", "-n",
         type=int,
         default=None,
         help="Number of tasks to include"

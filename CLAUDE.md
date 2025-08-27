@@ -154,6 +154,9 @@ When completing any task or responding to requests:
    - Summary of what was implemented
    - Test results
    - Lint status
+7. **ALWAYS provide permalinks** for EVERY file touched in a PR/commit
+8. **ALWAYS push changes** immediately after committing (`git push origin branch-name`)
+9. **After making changes**, provide a complete list of permalinks to all modified files
 
 Example permalink format after push:
 ```
