@@ -1,0 +1,11 @@
+Individual file validation:
+--------------------------------------------------
+static_star_dev_real100.jsonl  ✅ 100 records
+static_chain_dev_real100.jsonl ✅ 100 records
+static_flat_dev_real100.jsonl  ✅ 100 records
+static_best_dev_real100.jsonl  ✅ 100 records
+apex_dynamic_dev_real100.jsonl ✅ 100 records
+
+Task list validation:
+--------------------------------------------------
+✅ All files have identical task sets (100 tasks)

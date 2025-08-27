@@ -1,3 +1,4 @@
+{"__meta__": {"split": "test", "dataset": "SWE-bench/SWE-bench_Lite", "seed": 17, "n": 100, "generated_by": "scripts/generate_real_task_list.py", "note": "100 tasks sampled from test split (dev only has 23 tasks)", "split_source": "test"}}
 {"task_id": "sympy__sympy-18199"}
 {"task_id": "sphinx-doc__sphinx-7975"}
 {"task_id": "psf__requests-863"}

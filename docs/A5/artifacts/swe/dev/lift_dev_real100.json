@@ -5,7 +5,14 @@
     "paired_by": "task_id",
     "n_tasks": 100,
     "paired": true,
-    "source": "real",
+    "source": "mock",
+    "generator": "run_swe_mock.py",
+    "split": "test",
+    "split_source": "test",
+    "dataset_namespace": "SWE-bench/SWE-bench_Lite",
+    "task_list_seed": 17,
+    "task_list_path": "docs/A5/artifacts/swe/dev/task_list_dev_real100.jsonl",
+    "note": "dev_real100 is a 100-task sample drawn from test split (dev only has 23)",
     "files": {
       "a": "docs/A5/artifacts/swe/dev/apex_dynamic_dev_real100.jsonl",
       "b": "docs/A5/artifacts/swe/dev/static_best_dev_real100.jsonl"

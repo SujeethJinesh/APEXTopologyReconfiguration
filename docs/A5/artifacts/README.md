@@ -152,10 +152,10 @@ python -m scripts.compute_cp --in <input.jsonl> --out <output.json>
 
 Seeds are fixed at 42 for deterministic results.
 
-## F5.6 Real SWE-bench Lite (dev) Evaluation
+## F5.6 Mock SWE-bench Lite Pipeline Validation
 
-> **NOTE:** These results are from mock evaluation for demonstration purposes.
-> Real SWE-bench evaluation would require significant compute time.
+> **⚠️ MOCK EVALUATION**: These results are from mock evaluation using `run_swe_mock.py`.
+> This is for CI-safe pipeline validation only. Do not use these numbers for any claims.
 
 ### Dataset
 - **SWE-bench Lite test split (used as dev):** 300 tasks
@@ -188,7 +188,9 @@ All F5.6 artifacts are in `docs/A5/artifacts/swe/dev/`:
 - Best static heavily favors flat topology (58% of tasks)
 
 ### Provenance
-All analysis JSONs contain `"source": "real"` metadata field to distinguish from mock runs.
+- All analysis JSONs contain `"source": "mock"` and `"generator": "run_swe_mock.py"`
+- All artifacts include `"split": "test"` and `"split_source": "test"` to clarify actual HF split used
+- Files retain "dev_real100" naming for consistency but metadata shows true provenance
 
 ### Full Documentation
 See `docs/A5/F5.6/T5.6_summary.md` for complete runbook and commands.
