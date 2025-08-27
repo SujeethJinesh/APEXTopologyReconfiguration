@@ -159,12 +159,12 @@ Seeds are fixed at 42 for deterministic results.
 
 ### Dataset
 - **SWE-bench Lite test split (used as dev):** 300 tasks
-- **Frozen task list:** `task_list_dev_real100.jsonl` with 100 sampled tasks
+- **Frozen task list:** `task_list_test_sample100.jsonl` with 100 sampled tasks
 - **Seed:** 17 for task selection, 42 for evaluations
 
 ### Files
 All F5.6 artifacts are in `docs/A5/artifacts/swe/dev/`:
-- `task_list_dev_real100.jsonl` - Frozen list of 100 task IDs
+- `task_list_test_sample100.jsonl` - Frozen list of 100 task IDs
 - `static_*_dev_real100.jsonl` - Results for each static policy
 - `apex_dynamic_dev_real100.jsonl` - APEX dynamic policy results
 - `static_best_dev_real100.jsonl` - Best static per task

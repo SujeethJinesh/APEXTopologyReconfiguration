@@ -11,7 +11,7 @@
   "split_source": "test",
   "dataset_namespace": "SWE-bench/SWE-bench_Lite",
   "task_list_seed": 17,
-  "task_list_path": "docs/A5/artifacts/swe/dev/task_list_dev_real100.jsonl",
+  "task_list_path": "docs/A5/artifacts/swe/dev/task_list_test_sample100.jsonl",
   "note": "dev_real100 is a 100-task sample drawn from test split (dev only has 23)",
   "input_file": "docs/A5/artifacts/swe/dev/static_best_dev_real100.jsonl"
 }

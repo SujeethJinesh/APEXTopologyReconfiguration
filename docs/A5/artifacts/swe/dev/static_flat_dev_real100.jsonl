@@ -1,3 +1,4 @@
+{"__meta__":{"source":"mock","generator":"run_swe_mock.py","split":"test","split_source":"test","task_list":"docs/A5/artifacts/swe/dev/task_list_test_sample100.jsonl","seed":17,"dataset":"SWE-bench/SWE-bench_Lite","note":"100-task sample from test split (dev has only 23 tasks)"}}
 {"task_id": "sympy__sympy-18199", "policy": "static_flat", "success": false, "tokens_used": 9640, "over_budget": false, "budget": 10000, "seed": 42, "epoch_switches": 0, "notes": ""}
 {"task_id": "sphinx-doc__sphinx-7975", "policy": "static_flat", "success": true, "tokens_used": 8835, "over_budget": false, "budget": 10000, "seed": 42, "epoch_switches": 0, "notes": ""}
 {"task_id": "psf__requests-863", "policy": "static_flat", "success": false, "tokens_used": 11809, "over_budget": true, "budget": 10000, "seed": 42, "epoch_switches": 0, "notes": ""}
