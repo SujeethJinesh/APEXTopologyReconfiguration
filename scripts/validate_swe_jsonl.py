@@ -29,6 +29,11 @@ def validate_jsonl(filepath: Path) -> Tuple[bool, int, str]:
                     continue
                 try:
                     obj = json.loads(line)
+                    
+                    # Skip metadata lines
+                    if "__meta__" in obj:
+                        continue
+                    
                     line_count += 1
                     
                     # Check required fields
@@ -66,7 +71,11 @@ def validate_task_list_match(jsonl_files: List[Path], task_list_file: Path) -> T
             line = line.strip()
             if line:
                 entry = json.loads(line)
-                expected_tasks.add(entry["task_id"])
+                # Skip metadata lines
+                if "__meta__" in entry:
+                    continue
+                if "task_id" in entry:
+                    expected_tasks.add(entry["task_id"])
     
     # Check each JSONL file
     all_task_sets = {}
@@ -77,6 +86,9 @@ def validate_task_list_match(jsonl_files: List[Path], task_list_file: Path) -> T
                 line = line.strip()
                 if line:
                     obj = json.loads(line)
+                    # Skip metadata lines
+                    if "__meta__" in obj:
+                        continue
                     task_ids.add(obj["task_id"])
         all_task_sets[filepath.name] = task_ids
     

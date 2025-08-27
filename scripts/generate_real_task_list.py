@@ -1,54 +1,95 @@
 #!/usr/bin/env python3
 """Generate real task list from Hugging Face SWE-bench Lite dataset."""
 
-from datasets import load_dataset
-import random
+import argparse
 import json
+import os
+import random
+from pathlib import Path
 
-# Load official SWE-bench Lite dataset
-print("Loading SWE-bench Lite dataset from Hugging Face...")
-ds = load_dataset("SWE-bench/SWE-bench_Lite", split="dev")
+from datasets import load_dataset
 
-print(f"Total tasks in dev split: {len(ds)}")
 
-# Stable shuffle with seed 42
-rng = random.Random(42)
-indices = list(range(len(ds)))
-rng.shuffle(indices)
+def _load_swe_dataset(split: str):
+    """Load SWE-bench Lite dataset with fallback."""
+    # Try official namespace first
+    try:
+        print(f"Loading SWE-bench Lite {split} split from official namespace...")
+        ds = load_dataset("SWE-bench/SWE-bench_Lite", split=split)
+        print(f"Loaded from official namespace: {len(ds)} tasks")
+        return ds, "SWE-bench/SWE-bench_Lite"
+    except Exception as e:
+        print(f"Official namespace failed: {e}")
+        # Try legacy namespace
+        try:
+            print(f"Trying legacy namespace...")
+            ds = load_dataset("princeton-nlp/SWE-bench_Lite", split=split)
+            print(f"Loaded from legacy namespace: {len(ds)} tasks")
+            return ds, "princeton-nlp/SWE-bench_Lite"
+        except Exception as e2:
+            print(f"Legacy namespace also failed: {e2}")
+            raise RuntimeError(f"Could not load SWE-bench Lite {split} split from either namespace")
 
-# Select first 100 (but dev only has 23, so we'll repeat as needed)
-sample_size = min(100, len(ds))
-if sample_size < 100:
-    print(f"Note: dev split only has {len(ds)} tasks, will create repetitions")
+
+def main():
+    parser = argparse.ArgumentParser(description="Generate real task list from SWE-bench Lite")
+    parser.add_argument("--split", required=True, choices=["dev", "test"], help="Dataset split")
+    parser.add_argument("--n", type=int, required=True, help="Number of tasks to sample")
+    parser.add_argument("--seed", type=int, required=True, help="Random seed for deterministic sampling")
+    parser.add_argument("--out", required=True, help="Output JSONL path")
+    parser.add_argument("--use-test-as-dev", action="store_true", 
+                        help="Use test split as dev (for SWE-bench Lite where dev only has 23)")
     
-# Create task list
-task_list = []
+    args = parser.parse_args()
+    
+    # Handle the fact that SWE-bench Lite dev only has 23 tasks while test has 300
+    # Per the MVP spec, we treat the 300-task split as our "dev" for evaluation
+    split_to_load = args.split
+    if args.use_test_as_dev and args.split == "dev":
+        print("Note: Using test split as dev (SWE-bench Lite dev only has 23 tasks)")
+        split_to_load = "test"
+    
+    # Load dataset
+    ds, namespace_used = _load_swe_dataset(split_to_load)
+    
+    print(f"Total tasks in {split_to_load} split (used as {args.split}): {len(ds)}")
+    
+    if args.n > len(ds):
+        raise ValueError(f"Requested {args.n} tasks but {args.split} split only has {len(ds)} tasks")
+    
+    # Deterministic sampling
+    rng = random.Random(args.seed)
+    all_task_ids = [row["instance_id"] for row in ds]
+    
+    # Sample without replacement
+    sampled_ids = rng.sample(all_task_ids, args.n)
+    
+    # Verify uniqueness
+    assert len(sampled_ids) == len(set(sampled_ids)), "Sampled IDs are not unique"
+    
+    # Verify all IDs exist in dataset
+    dataset_ids = set(all_task_ids)
+    for task_id in sampled_ids:
+        assert task_id in dataset_ids, f"Task ID {task_id} not found in dataset"
+    
+    # Create output directory if needed
+    output_path = Path(args.out)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Write to file - one object per line
+    with open(output_path, "w") as f:
+        for task_id in sampled_ids:
+            json.dump({"task_id": task_id}, f)
+            f.write("\n")
+    
+    print(f"\n✅ Generated task list with {len(sampled_ids)} unique tasks")
+    print(f"   Namespace used: {namespace_used}")
+    print(f"   Seed: {args.seed}")
+    print(f"   Output: {args.out}")
+    print(f"\nFirst 10 task IDs:")
+    for i, task_id in enumerate(sampled_ids[:10]):
+        print(f"  {i+1}. {task_id}")
 
-# First, add all unique tasks
-for i in range(sample_size):
-    row = ds[indices[i]]
-    task_list.append({"task_id": row["instance_id"]})
 
-# If we need more than available, add repetitions
-if len(task_list) < 100:
-    rep = 1
-    while len(task_list) < 100:
-        for i in range(len(ds)):
-            if len(task_list) >= 100:
-                break
-            row = ds[indices[i]]
-            task_list.append({"task_id": f"{row['instance_id']}__rep_{rep}"})
-        rep += 1
-
-# Write to file
-output_path = "docs/A5/artifacts/swe/dev/task_list_dev_sample100.jsonl"
-with open(output_path, "w") as f:
-    for entry in task_list:
-        json.dump(entry, f)
-        f.write("\n")
-
-print(f"\nGenerated task list with {len(task_list)} entries")
-print(f"Output: {output_path}")
-print("\nFirst 10 task IDs:")
-for i, entry in enumerate(task_list[:10]):
-    print(f"  {i+1}. {entry['task_id']}")
+if __name__ == "__main__":
+    main()
