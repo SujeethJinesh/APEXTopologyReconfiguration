@@ -68,6 +68,40 @@ class SWELiteProvider:
             self.cache_dir = Path.home() / ".cache" / "apex" / "swe_bench"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
+    def _load_swe_dataset(self, split: str, cache_dir: str, offline: bool):
+        """Load SWE-bench dataset with fallback to legacy namespace.
+
+        Args:
+            split: Dataset split (dev/test)
+            cache_dir: Cache directory
+            offline: Whether to use offline mode
+
+        Returns:
+            Dataset object
+        """
+        import datasets
+
+        if offline:
+            # In offline mode, try to reuse cached dataset
+            return datasets.load_dataset(
+                "SWE-bench/SWE-bench_Lite",
+                split=split,
+                cache_dir=cache_dir,
+                download_mode="reuse_dataset_if_exists",
+            )
+
+        # Try official namespace first
+        try:
+            return datasets.load_dataset(
+                "SWE-bench/SWE-bench_Lite", split=split, cache_dir=cache_dir
+            )
+        except Exception:
+            # Fallback to legacy namespace if HF redirects or mirrors have lag
+            print("Note: Falling back to legacy dataset namespace princeton-nlp/SWE-bench_Lite")
+            return datasets.load_dataset(
+                "princeton-nlp/SWE-bench_Lite", split=split, cache_dir=cache_dir
+            )
+
     def load(
         self, split: str = "dev", limit: Optional[int] = None, offline: bool = False
     ) -> List[SWERecord]:
@@ -109,17 +143,15 @@ class SWELiteProvider:
                 "Set APEX_ALLOW_NETWORK=1 to download dataset from Hugging Face."
             )
 
-        # Download from Hugging Face
+        # Download from Hugging Face - check import availability
         try:
-            import datasets
+            import datasets  # noqa: F401
         except ImportError:
             raise ImportError("datasets library not installed. Install with: pip install datasets")
 
-        # Load from Hugging Face with exact dataset name
-        dataset = datasets.load_dataset(
-            "SWE-bench/SWE-bench_Lite",  # Official namespace
-            split=split,
-            cache_dir=str(self.cache_dir),
+        # Load from Hugging Face with fallback to legacy namespace
+        dataset = self._load_swe_dataset(
+            split=split, cache_dir=str(self.cache_dir), offline=offline
         )
 
         # Cache locally for future use
