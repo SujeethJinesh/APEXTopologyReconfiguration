@@ -107,13 +107,16 @@ def main():
     # Load results
     results = load_jsonl(args.input)
     
+    # Filter out metadata
+    results = [r for r in results if "__meta__" not in r]
+    
     if not results:
         print("Error: No results found in input file")
         return
     
-    # Count violations
+    # Count violations (handle both field names)
     total = len(results)
-    violations = sum(1 for r in results if r.get("over_budget", False))
+    violations = sum(1 for r in results if r.get("budget_violated", r.get("over_budget", False)))
     
     # Compute CP upper bound
     cp_upper = clopper_pearson_upper(violations, total, args.confidence)

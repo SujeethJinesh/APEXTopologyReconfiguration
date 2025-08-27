@@ -5,7 +5,7 @@ import json
 import random
 from pathlib import Path
 
-def simulate_swe_episode(task_id: str, policy: str, budget: int, seed: int) -> dict:
+def simulate_swe_episode(task_id: str, policy: str, budget: int, seed: int, source: str = "mock") -> dict:
     """Simulate a SWE episode with realistic results."""
     rng = random.Random(seed + hash(task_id) + hash(policy))
     
@@ -70,12 +70,18 @@ def simulate_swe_episode(task_id: str, policy: str, budget: int, seed: int) -> d
         "task_id": task_id,
         "policy": policy,
         "success": success,
-        "tokens_used": tokens_used,
-        "over_budget": over_budget,
+        "tokens_used_total": tokens_used,  # Use consistent field name
+        "budget_violated": over_budget,     # Use consistent field name
         "budget": budget,
         "seed": seed,
         "epoch_switches": epoch_switches,
         "notes": notes,
+        "provenance": {
+            "source": source,
+            "split": "test",
+            "dataset_namespace": "SWE-bench/SWE-bench_Lite",
+            "generator": "run_swe_mock.py"
+        }
     }
 
 def main():
@@ -88,6 +94,7 @@ def main():
     parser.add_argument("--budget", type=int, default=10000, help="Token budget")
     parser.add_argument("--out", required=True, help="Output JSONL")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--source", default="mock", help="Source type (mock or real)")
     
     args = parser.parse_args()
     
@@ -95,7 +102,11 @@ def main():
     task_list = []
     with open(args.task_list, "r") as f:
         for line in f:
-            task_list.append(json.loads(line)["task_id"])
+            obj = json.loads(line)
+            # Skip metadata lines
+            if "__meta__" in obj:
+                continue
+            task_list.append(obj["task_id"])
     
     print(f"Loaded {len(task_list)} tasks")
     print(f"Policy: {args.policy}")
@@ -109,14 +120,14 @@ def main():
     violations = 0
     
     for i, task_id in enumerate(task_list):
-        result = simulate_swe_episode(task_id, args.policy, args.budget, args.seed)
+        result = simulate_swe_episode(task_id, args.policy, args.budget, args.seed, args.source)
         results.append(result)
         
         if result["success"]:
             successes += 1
-        if result["over_budget"]:
+        if result["budget_violated"]:
             violations += 1
-        total_tokens += result["tokens_used"]
+        total_tokens += result["tokens_used_total"]
         
         # Progress
         if (i + 1) % 20 == 0:
@@ -127,6 +138,24 @@ def main():
     output_path.parent.mkdir(parents=True, exist_ok=True)
     
     with open(output_path, "w") as f:
+        # Write metadata first
+        metadata = {
+            "__meta__": {
+                "source": args.source,
+                "generator": "run_swe_mock.py",
+                "split": "test",
+                "dataset": "SWE-bench/SWE-bench_Lite",
+                "task_list": args.task_list,
+                "seed": args.seed,
+                "policy": args.policy,
+                "budget": args.budget,
+                "n_tasks": len(results)
+            }
+        }
+        json.dump(metadata, f)
+        f.write("\n")
+        
+        # Write results
         for result in results:
             json.dump(result, f)
             f.write("\n")

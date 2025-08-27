@@ -92,9 +92,9 @@ def main():
     apex_results = load_jsonl(args.a)
     static_results = load_jsonl(args.b)
     
-    # Group by task_id
-    apex_by_task = {r["task_id"]: r for r in apex_results}
-    static_by_task = {r["task_id"]: r for r in static_results}
+    # Group by task_id (skip metadata)
+    apex_by_task = {r["task_id"]: r for r in apex_results if "__meta__" not in r}
+    static_by_task = {r["task_id"]: r for r in static_results if "__meta__" not in r}
     
     # Find common tasks
     common_tasks = sorted(set(apex_by_task.keys()) & set(static_by_task.keys()))
