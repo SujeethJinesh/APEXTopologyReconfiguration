@@ -5,12 +5,15 @@ Supports both Ollama for local inference and mock mode for testing.
 
 import asyncio
 import json
+import logging
 import os
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 import aiohttp
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -34,6 +37,7 @@ class LLMResponse:
     elapsed_seconds: float
     model: str
     error: Optional[str] = None
+    status: Optional[str] = None  # "budget_denied" or None
 
 
 class TokenTracker:
@@ -123,27 +127,31 @@ class LLMClient:
         if self.config.mock_mode:
             return await self._mock_complete(prompt, system)
 
-        # Estimate tokens (rough: 1 token per 4 chars)
-        estimated_tokens = len(prompt) // 4 + (max_tokens or self.config.max_tokens)
+        # Estimate tokens with conservative factor
+        prompt_tokens_est = len(prompt) // 4  # rough: 1 token per 4 chars
+        max_out_tokens = max_tokens or self.config.max_tokens
+        estimated_tokens = int((prompt_tokens_est + max_out_tokens) * 1.1)  # +10% buffer
 
         if not self.tracker.can_request(estimated_tokens):
-            # Log budget denial
-            _ = json.dumps(
-                {
-                    "event": "budget_denied",
-                    "estimated_tokens": estimated_tokens,
-                    "remaining": self.tracker.remaining(),
+            # Log budget denial - no model call
+            logger.info(
+                "budget_denied",
+                extra={
+                    "episode_id": getattr(self, "episode_id", "unknown"),
                     "used": self.tracker.used,
-                }
+                    "estimate": estimated_tokens,
+                    "budget": self.tracker.budget,
+                },
             )
-            # In production, write to log file
 
+            # Return structured result - NO network I/O
             return LLMResponse(
                 content="",
                 tokens_used=0,
                 elapsed_seconds=0,
                 model=self.config.model,
-                error=f"Token budget exceeded: {self.tracker.remaining()} remaining",
+                error="budget_denied",
+                status="budget_denied",  # Explicit status field
             )
 
         start_time = time.time()

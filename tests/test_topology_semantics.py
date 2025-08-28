@@ -41,7 +41,7 @@ class TestStarTopology:
             payload={},
         )
         assert await router.route(coder_msg) is False
-        assert coder_msg.drop_reason == "Topology star violation"
+        assert "invalid_topology_route" in coder_msg.drop_reason
 
     async def test_star_peer_to_peer_blocked(self):
         """Star: Peer-to-peer messages blocked."""
@@ -58,7 +58,7 @@ class TestStarTopology:
             payload={},
         )
         assert await router.route(msg) is False
-        assert msg.drop_reason == "Topology star violation"
+        assert "invalid_topology_route" in msg.drop_reason
 
     async def test_star_hub_traffic_allowed(self):
         """Star: All traffic through hub allowed."""
@@ -185,8 +185,8 @@ class TestFlatTopology:
             payload={"_fanout": 3},  # Too many recipients
         )
 
-        with pytest.raises(ValueError, match="fan-out.*> 2"):
-            await router.route(msg)
+        assert await router.route(msg) is False
+        assert "fanout_cap" in msg.drop_reason
 
     async def test_flat_fanout_ok(self):
         """Flat: Fan-out ≤ 2 allowed."""
