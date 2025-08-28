@@ -1,0 +1,2 @@
+{"__meta__": {"source": "mock", "generator": "run_swe_mock.py", "split": "test", "dataset": "SWE-bench/SWE-bench_Lite", "task_list": "artifacts/local/dev_n1.jsonl", "seed": 42, "policy": "static_star", "budget": 10000, "n_tasks": 1}}
+{"task_id": "pydicom__pydicom-901", "policy": "static_star", "success": true, "tokens_used_total": 9552, "budget_violated": false, "budget": 10000, "seed": 42, "epoch_switches": 0, "notes": "", "provenance": {"source": "mock", "split": "test", "dataset_namespace": "SWE-bench/SWE-bench_Lite", "generator": "run_swe_mock.py"}}
