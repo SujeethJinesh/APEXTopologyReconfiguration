@@ -1,248 +1,286 @@
-from __future__ import annotations
+"""Message router with epoch-gated FIFO queues.
+
+Implements bounded FIFO queues per (agent, epoch) with support for
+atomic epoch switching and FIFO-preserving re-enqueue on abort.
+"""
 
 import asyncio
-import time
-from dataclasses import replace
-from typing import TYPE_CHECKING, Dict, Iterable, List, Optional, Set
+import logging
+from typing import Dict, Literal, Optional, Set, Tuple
 
-from apex.config.defaults import MAX_ATTEMPTS, MESSAGE_TTL_S, QUEUE_CAP_PER_AGENT
-
-from .errors import InvalidRecipientError, QueueFullError
 from .message import AgentID, Epoch, Message
-from .topology_guard import TopologyGuard
 
-if TYPE_CHECKING:
-    from .switch_api import ISwitchEngine
+logger = logging.getLogger(__name__)
+
+# Topology types
+TopologyType = Literal["star", "chain", "flat"]
+
+# Chain topology next hop mapping
+CHAIN_NEXT = {
+    AgentID("Planner"): AgentID("Coder"),
+    AgentID("Coder"): AgentID("Runner"),
+    AgentID("Runner"): AgentID("Critic"),
+    AgentID("Critic"): None,  # End of chain
+}
 
 
 class Router:
-    """
-    Epoch-gated, per-recipient bounded FIFO queues with TTL and retry support.
+    """Epoch-aware message router with bounded FIFO queues.
 
-    - New messages go to Q_active (epoch N), unless a switch is in PREPARE/QUIESCE,
-      in which case they go to Q_next (epoch N+1).
-    - Dequeue only serves the active epoch; N+1 is not served until COMMIT.
-    - On ABORT, Q_next is appended behind Q_active (per recipient), preserving FIFO.
-
-    Note: Epoch stamping occurs at ingress in Router, not at agent message construction.
-    Router is the authoritative source for epoch assignment during route().
+    Maintains separate queues per (agent, epoch) pair and supports
+    atomic epoch switching with FIFO preservation on abort.
     """
 
-    def __init__(
-        self,
-        recipients: Iterable[str],
-        queue_cap_per_agent: int = QUEUE_CAP_PER_AGENT,
-        message_ttl_s: float = MESSAGE_TTL_S,
-        switch_engine: Optional["ISwitchEngine"] = None,
-        topology_guard: Optional[TopologyGuard] = None,
-    ) -> None:
-        self._recipients: Set[str] = set(recipients)
-        if not self._recipients:
-            raise ValueError("Router requires at least one recipient")
+    def __init__(self, queue_cap_per_agent: int = 10_000, fanout_cap: int = 2):
+        """Initialize router with specified queue capacity.
 
-        self._cap = int(queue_cap_per_agent)
-        self._ttl_s = float(message_ttl_s)
-
-        # Epoch state
-        self._active_epoch: int = 0
-        self._route_to_next: bool = False  # when True, route() enqueues into Q_next with epoch N+1
-
-        # Per-recipient queues for active and next epochs
-        self._q_active: Dict[str, asyncio.Queue[Message]] = {
-            r: asyncio.Queue(maxsize=self._cap) for r in self._recipients
-        }
-        self._q_next: Dict[str, asyncio.Queue[Message]] = {
-            r: asyncio.Queue(maxsize=self._cap) for r in self._recipients
+        Args:
+            queue_cap_per_agent: Maximum messages per agent queue
+            fanout_cap: Maximum fan-out for flat topology (default 2)
+        """
+        self._queues: Dict[Tuple[AgentID, Epoch], asyncio.Queue[Message]] = {}
+        self._cap = queue_cap_per_agent
+        self._fanout_cap = fanout_cap  # Configurable fan-out limit
+        self._active_epoch: Epoch = Epoch(0)
+        self._next_epoch: Epoch = Epoch(1)
+        self._accepting_next = False  # Set during PREPARE phase
+        self._topology: TopologyType = "star"  # Default topology
+        self._known_agents: Set[AgentID] = {
+            AgentID("Manager"),
+            AgentID("Planner"),
+            AgentID("Coder"),
+            AgentID("Runner"),
+            AgentID("Critic"),
         }
 
-        self._lock = asyncio.Lock()
+    def _q(self, agent: AgentID, epoch: Epoch) -> asyncio.Queue[Message]:
+        """Get or create queue for (agent, epoch) pair."""
+        key = (agent, epoch)
+        if key not in self._queues:
+            self._queues[key] = asyncio.Queue(self._cap)
+        return self._queues[key]
 
-        # Topology enforcement
-        self._switch_engine = switch_engine
-        self._topology_guard = topology_guard or TopologyGuard()
-
-    # -------- Properties / Inspection --------
-
-    @property
-    def active_epoch(self) -> int:
+    def active_epoch(self) -> Epoch:
+        """Get current active epoch."""
         return self._active_epoch
 
-    def recipients(self) -> Set[str]:
-        return set(self._recipients)
+    def next_epoch(self) -> Epoch:
+        """Get next epoch (for buffering during switch)."""
+        return self._next_epoch
 
-    def _qsize_active_total(self) -> int:
-        return sum(q.qsize() for q in self._q_active.values())
+    def set_topology(self, topology: TopologyType):
+        """Set the current topology for routing enforcement."""
+        self._topology = topology
 
-    def _qsize_next_total(self) -> int:
-        return sum(q.qsize() for q in self._q_next.values())
+    def _validate_topology(self, msg: Message) -> bool:
+        """Validate message against topology constraints.
 
-    # -------- Switch control (called by SwitchEngine) --------
+        Args:
+            msg: Message to validate
 
-    async def start_switch(self) -> None:
-        """Route new messages into Q_next (epoch N+1)."""
-        async with self._lock:
-            self._route_to_next = True
-
-    async def commit_switch(self) -> None:
+        Returns:
+            True if allowed by topology, False otherwise
         """
-        Atomic swap: Q_next becomes Q_active and epoch increments.
-        No messages from N+1 were served before this point.
-        """
-        async with self._lock:
-            self._active_epoch += 1
-            # swap dictionaries atomically
-            self._q_active, self._q_next = self._q_next, {
-                r: asyncio.Queue(maxsize=self._cap) for r in self._recipients
-            }
-            self._route_to_next = False
+        if self._topology == "star":
+            # STAR: Only Planner hub can broadcast, no peer-to-peer
+            if msg.recipient == "BROADCAST":
+                if msg.sender != AgentID("Planner"):
+                    msg.drop_reason = "invalid_topology_route: only Planner can broadcast in star"
+                    return False
+                return True
+            # All non-broadcast messages must involve Planner
+            if msg.sender != AgentID("Planner") and msg.recipient != AgentID("Planner"):
+                msg.drop_reason = "invalid_topology_route: peer-to-peer not allowed in star"
+                return False
+            return True
 
-    async def abort_switch(self) -> Dict[str, int]:
-        """
-        Re-enqueue all Q_next messages after the tail of Q_active per-recipient, preserving FIFO.
-        Returns dict of drop counts by reason.
-        """
-        dropped_by_reason: Dict[str, int] = {}
-        async with self._lock:
-            for r in self._recipients:
-                qn = self._q_next[r]
-                qa = self._q_active[r]
-                # Drain next and append into active preserving order
-                tmp: List[Message] = []
-                while not qn.empty():
-                    tmp.append(qn.get_nowait())
-                for m in tmp:
-                    if qa.full():
-                        # if active is full, drop; mark drop reason
-                        m.drop_reason = "queue_full"
-                        dropped_by_reason["queue_full"] = dropped_by_reason.get("queue_full", 0) + 1
-                        continue
-                    await qa.put(m)
-            # clear next queues
-            self._q_next = {r: asyncio.Queue(maxsize=self._cap) for r in self._recipients}
-            self._route_to_next = False
-        return dropped_by_reason
+        elif self._topology == "chain":
+            # CHAIN: Enforce strict next-hop only
+            if msg.recipient == "BROADCAST":
+                msg.drop_reason = "invalid_topology_route: no broadcast in chain"
+                return False
 
-    # -------- Routing & Dequeue --------
+            # Check next hop
+            expected_next = CHAIN_NEXT.get(msg.sender)
+            if expected_next is None and msg.sender == AgentID("Critic"):
+                # Special case: Critic can send back to Manager
+                if msg.recipient == AgentID("Manager"):
+                    return True
+                msg.drop_reason = "invalid_chain_hop: Critic can only send to Manager"
+                return False
+
+            if msg.recipient != expected_next:
+                msg.drop_reason = (
+                    f"invalid_chain_hop: expected {expected_next}, got {msg.recipient}"
+                )
+                return False
+            return True
+
+        elif self._topology == "flat":
+            # FLAT: Allow peer-to-peer with bounded fan-out
+            if msg.recipient == "BROADCAST":
+                # Check fanout metadata
+                fanout = msg.payload.get("_fanout", len(self._known_agents) - 1)
+                if fanout > self._fanout_cap:
+                    msg.drop_reason = f"fanout_cap: {fanout} > {self._fanout_cap}"
+                    return False
+            return True
+
+        msg.drop_reason = f"unknown_topology: {self._topology}"
+        return False
 
     async def route(self, msg: Message) -> bool:
+        """Route message to appropriate queue with topology enforcement.
+
+        Args:
+            msg: Message to route
+
+        Returns:
+            True if queued successfully, False if rejected or queue full
         """
-        Enqueue a message. If recipient == "BROADCAST", fan out to all recipients
-        except the sender. TTL: if expires_ts == 0, set to created_ts + self._ttl_s.
-
-        Behavior:
-          - Raises InvalidRecipientError if recipient unknown.
-          - Raises QueueFullError if the target queue is full.
-          - Raises TopologyViolationError if the message violates topology rules.
-          - Returns True on successful enqueue (or on all fanout enqueues).
-        """
-        # Get current topology for validation (read once per call)
-        topology = None
-        if self._switch_engine:
-            topology, _ = self._switch_engine.active()
-
-        if msg.recipient == "BROADCAST":
-            targets = [r for r in self._recipients if r != msg.sender]
-
-            # Validate broadcast for topology
-            if topology and self._topology_guard:
-                self._topology_guard.validate_broadcast(topology, msg.sender, len(targets))
-
-            # Validate each individual pair
-            if topology and self._topology_guard:
-                for target in targets:
-                    self._topology_guard.validate_pair(topology, msg.sender, AgentID(target))
-
-            results = [await self._route_one(msg, r) for r in targets]
-            return all(results)
-        else:
-            if msg.recipient not in self._recipients:
-                msg.drop_reason = "invalid_recipient"
-                raise InvalidRecipientError(msg.recipient)
-
-            # Validate the pair before routing
-            if topology and self._topology_guard:
-                self._topology_guard.validate_pair(topology, msg.sender, msg.recipient)
-
-            return await self._route_one(msg, msg.recipient)
-
-    async def _route_one(self, msg: Message, target: str) -> bool:
-        # copy per recipient to avoid aliasing the same instance
-        copy = replace(msg)
-        if copy.expires_ts == 0.0:
-            copy.expires_ts = copy.created_ts + self._ttl_s
-
-        async with self._lock:
-            q = self._q_next[target] if self._route_to_next else self._q_active[target]
-            epoch = self._active_epoch + 1 if self._route_to_next else self._active_epoch
-            copy.topo_epoch = Epoch(epoch)
-
-            if q.full():
-                copy.drop_reason = "queue_full"
-                # do not enqueue
-                raise QueueFullError(f"Queue full for {target}")
-            await q.put(copy)
-            return True
-
-    async def dequeue(self, agent_id: AgentID) -> Optional[Message]:
-        """
-        Return next message for agent from the **active** epoch only.
-        Never serves next-epoch before COMMIT.
-        """
-        if agent_id not in self._recipients:
-            raise InvalidRecipientError(agent_id)
-
-        # Only ever serve from active queues.
-        qa = self._q_active[agent_id]
-        # Drop expired messages at dequeue
-        while True:
-            try:
-                m = qa.get_nowait()
-            except asyncio.QueueEmpty:
-                return None
-            now = time.monotonic()
-            if m.expires_ts and now > m.expires_ts:
-                # Mark as expired before dropping
-                m.drop_reason = "expired"
-                continue
-            return m
-
-    # -------- Retry --------
-
-    async def retry(self, msg: Message) -> bool:
-        """
-        Re-enqueue message at the tail of the active queue for its recipient.
-        Increments attempt, sets redelivered=True.
-        Drops if attempt exceeds MAX_ATTEMPTS.
-        """
-        # Check if max attempts exceeded
-        if msg.attempt >= MAX_ATTEMPTS:
-            msg.drop_reason = "max_attempts"
+        # Validate topology constraints
+        if not self._validate_topology(msg):
+            # drop_reason already set by _validate_topology
+            if not msg.drop_reason:
+                msg.drop_reason = f"Topology {self._topology} violation"
             return False
 
-        msg.attempt += 1
-        msg.redelivered = True
-        msg.drop_reason = None
-        # Reset TTL for the retried message
-        now = time.monotonic()
-        if msg.expires_ts == 0.0 or msg.expires_ts < now:
-            msg.created_ts = now
-            msg.expires_ts = now + self._ttl_s
-        # Enqueue into active
-        async with self._lock:
-            qa = self._q_active[msg.recipient]
-            if qa.full():
-                msg.drop_reason = "queue_full"
-                return False
-            await qa.put(msg)
+        # Route to active or next epoch based on message epoch
+        if msg.topo_epoch == self._active_epoch:
+            epoch = self._active_epoch
+        elif self._accepting_next and msg.topo_epoch == self._next_epoch:
+            epoch = self._next_epoch
+        else:
+            # Message from wrong epoch
+            msg.drop_reason = f"Wrong epoch: {msg.topo_epoch}"
+            return False
+
+        # Handle broadcast
+        if msg.recipient == "BROADCAST":
+            # Route to all agents except sender
+            success = True
+            for agent_id in self._known_agents:
+                if agent_id != msg.sender:
+                    q = self._q(agent_id, epoch)
+                    try:
+                        q.put_nowait(msg)
+                    except asyncio.QueueFull:
+                        success = False
+            return success
+
+        # Single recipient
+        q = self._q(msg.recipient, epoch)
+        try:
+            q.put_nowait(msg)
             return True
+        except asyncio.QueueFull:
+            msg.drop_reason = "Queue full"
+            return False
 
-    # -------- Introspection helpers for SwitchEngine/tests --------
+    async def dequeue(
+        self, agent_id: AgentID, timeout: Optional[float] = None
+    ) -> Optional[Message]:
+        """Dequeue next message for agent respecting epoch gating.
 
-    def active_has_pending(self) -> bool:
-        return self._qsize_active_total() > 0
+        No N+1 dequeue while N has messages.
 
-    def next_counts(self) -> Dict[str, int]:
-        return {r: q.qsize() for r, q in self._q_next.items()}
+        Args:
+            agent_id: Agent requesting message
+            timeout: Optional timeout in seconds
 
-    def active_counts(self) -> Dict[str, int]:
-        return {r: q.qsize() for r, q in self._q_active.items()}
+        Returns:
+            Next message or None if queue empty/timeout
+        """
+        # First check active epoch queue
+        q_active = self._q(agent_id, self._active_epoch)
+        try:
+            # Try to get from active epoch first (non-blocking)
+            msg = q_active.get_nowait()
+            return msg
+        except asyncio.QueueEmpty:
+            pass
+
+        # Check if ANY active epoch queue has messages (epoch gating)
+        if not self.is_active_drained():
+            # Active epoch not fully drained, cannot dequeue from next
+            # Wait on active queue only
+            try:
+                if timeout is None:
+                    return None  # No message available in active epoch
+                else:
+                    return await asyncio.wait_for(q_active.get(), timeout=timeout)
+            except (asyncio.QueueEmpty, asyncio.TimeoutError):
+                return None
+
+        # Active epoch is drained, but we should NOT dequeue from next
+        # unless the switch has been COMMITTED
+        # During PREPARE/QUIESCE, messages go to next but cannot be dequeued
+        return None
+
+    def enable_next_buffering(self):
+        """Enable buffering to next epoch (PREPARE phase)."""
+        self._accepting_next = True
+
+    def commit_epoch(self):
+        """Commit epoch switch (COMMIT phase)."""
+        self._active_epoch = self._next_epoch
+        self._next_epoch = Epoch(int(self._next_epoch) + 1)
+        self._accepting_next = False
+
+    def reenqueue_next_into_active(self):
+        """Re-enqueue next epoch messages into active (ABORT phase).
+
+        Preserves FIFO order when moving messages back.
+        """
+        # Collect all next-epoch queues
+        for (agent, epoch), q_next in list(self._queues.items()):
+            if epoch == self._next_epoch:
+                q_active = self._q(agent, self._active_epoch)
+
+                # FIFO preservation: dequeue from front, enqueue to back
+                messages_to_move = []
+                while not q_next.empty():
+                    try:
+                        msg = q_next.get_nowait()  # FIFO get from next
+                        messages_to_move.append(msg)
+                    except asyncio.QueueEmpty:
+                        break
+
+                # Re-enqueue in same FIFO order
+                for msg in messages_to_move:
+                    msg.redelivered = True
+                    try:
+                        q_active.put_nowait(msg)  # FIFO put to active
+                    except asyncio.QueueFull:
+                        msg.drop_reason = "Queue full on ABORT re-enqueue"
+                        # Log dropped message in production
+                        logger.warning(
+                            "Message dropped on ABORT re-enqueue",
+                            extra={"msg_id": msg.msg_id, "agent": str(agent)},
+                        )
+
+        self._accepting_next = False
+
+    def get_queue_depth(self, agent: AgentID, epoch: Optional[Epoch] = None) -> int:
+        """Get queue depth for agent at epoch.
+
+        Args:
+            agent: Agent ID
+            epoch: Epoch (defaults to active)
+
+        Returns:
+            Number of messages in queue
+        """
+        if epoch is None:
+            epoch = self._active_epoch
+        key = (agent, epoch)
+        if key in self._queues:
+            return self._queues[key].qsize()
+        return 0
+
+    def is_active_drained(self) -> bool:
+        """Check if all active epoch queues are empty."""
+        for (agent, epoch), q in self._queues.items():
+            if epoch == self._active_epoch and not q.empty():
+                return False
+        return True

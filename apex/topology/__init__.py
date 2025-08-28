@@ -1,0 +1,1 @@
+"""Topology semantics and enforcement."""
