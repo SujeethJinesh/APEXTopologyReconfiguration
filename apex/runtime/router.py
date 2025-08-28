@@ -31,14 +31,16 @@ class Router:
     atomic epoch switching with FIFO preservation on abort.
     """
 
-    def __init__(self, queue_cap_per_agent: int = 10_000):
+    def __init__(self, queue_cap_per_agent: int = 10_000, fanout_cap: int = 2):
         """Initialize router with specified queue capacity.
 
         Args:
             queue_cap_per_agent: Maximum messages per agent queue
+            fanout_cap: Maximum fan-out for flat topology (default 2)
         """
         self._queues: Dict[Tuple[AgentID, Epoch], asyncio.Queue[Message]] = {}
         self._cap = queue_cap_per_agent
+        self._fanout_cap = fanout_cap  # Configurable fan-out limit
         self._active_epoch: Epoch = Epoch(0)
         self._next_epoch: Epoch = Epoch(1)
         self._accepting_next = False  # Set during PREPARE phase
@@ -119,8 +121,8 @@ class Router:
             if msg.recipient == "BROADCAST":
                 # Check fanout metadata
                 fanout = msg.payload.get("_fanout", len(self._known_agents) - 1)
-                if fanout > 2:
-                    msg.drop_reason = f"fanout_cap: {fanout} > 2"
+                if fanout > self._fanout_cap:
+                    msg.drop_reason = f"fanout_cap: {fanout} > {self._fanout_cap}"
                     return False
             return True
 

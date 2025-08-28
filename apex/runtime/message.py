@@ -49,7 +49,8 @@ class Message:
 
     def __post_init__(self):
         """Validate message constraints."""
-        # Guard against oversized payloads
-        sz = len(json.dumps(self.payload).encode("utf-8"))
-        if sz > _MAX_PAYLOAD_BYTES:
-            raise ValueError(f"Message payload too large: {sz} > 512 KiB")
+        # Guard against oversized payloads (check serialized bytes)
+        if self.payload:
+            size_bytes = len(json.dumps(self.payload, separators=(",", ":")).encode("utf-8"))
+            if size_bytes > _MAX_PAYLOAD_BYTES:
+                raise ValueError(f"Message payload too large: {size_bytes} bytes > 512 KB")

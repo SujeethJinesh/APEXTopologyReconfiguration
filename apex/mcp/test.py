@@ -301,6 +301,13 @@ class MCPTestRunner:
         # Parse pytest output for test counts
         output = result.get("stdout", "")
 
+        # TODO: Prefer machine-readable JSON report for robust parsing
+        # Options to consider post-MVP:
+        # 1. Use pytest-json-report plugin: --json-report --json-report-file=report.json
+        # 2. Use pytest --junit-xml for structured output
+        # 3. Use -q --tb=no -r a for more predictable text format
+        # Current approach parses text output which is brittle across pytest versions
+
         # Parse summary line (e.g., "3 passed, 1 failed, 2 skipped in 1.23s")
         passed = 0
         failed = 0

@@ -127,9 +127,10 @@ class LLMClient:
         if self.config.mock_mode:
             return await self._mock_complete(prompt, system)
 
-        # Estimate tokens with conservative factor
-        prompt_tokens_est = len(prompt) // 4  # rough: 1 token per 4 chars
-        max_out_tokens = max_tokens or self.config.max_tokens
+        # Estimate tokens with conservative factor and guardrails
+        prompt_tokens_est = max(0, len(prompt) // 4)  # rough: 1 token per 4 chars
+        # Clamp max_tokens to reasonable range
+        max_out_tokens = max(1, min(max_tokens or self.config.max_tokens, 4096))
         estimated_tokens = int((prompt_tokens_est + max_out_tokens) * 1.1)  # +10% buffer
 
         if not self.tracker.can_request(estimated_tokens):

@@ -87,6 +87,66 @@ class TestStarTopology:
         )
         assert await router.route(msg2) is True
 
+    async def test_star_comprehensive_hub_rules(self):
+        """Star: Comprehensive test of hub-based routing rules."""
+        router = Router()
+        router.set_topology("star")
+
+        # Test 1: Any agent can send to Planner (hub)
+        agents = ["Coder", "Runner", "Critic", "Manager"]
+        for agent_name in agents:
+            msg = Message(
+                episode_id="ep1",
+                msg_id=uuid4().hex,
+                sender=AgentID(agent_name),
+                recipient=AgentID("Planner"),
+                topo_epoch=Epoch(0),
+                payload={},
+            )
+            assert await router.route(msg) is True, f"{agent_name} -> Planner should be allowed"
+
+        # Test 2: Planner can send to any agent
+        for agent_name in agents:
+            msg = Message(
+                episode_id="ep1",
+                msg_id=uuid4().hex,
+                sender=AgentID("Planner"),
+                recipient=AgentID(agent_name),
+                topo_epoch=Epoch(0),
+                payload={},
+            )
+            assert await router.route(msg) is True, f"Planner -> {agent_name} should be allowed"
+
+        # Test 3: Non-hub agents cannot send to each other
+        peer_pairs = [
+            ("Coder", "Runner"),
+            ("Runner", "Critic"),
+            ("Critic", "Manager"),
+            ("Manager", "Coder"),
+        ]
+        for sender, recipient in peer_pairs:
+            msg = Message(
+                episode_id="ep1",
+                msg_id=uuid4().hex,
+                sender=AgentID(sender),
+                recipient=AgentID(recipient),
+                topo_epoch=Epoch(0),
+                payload={},
+            )
+            assert await router.route(msg) is False, f"{sender} -> {recipient} should be blocked"
+            assert "invalid_topology_route" in msg.drop_reason
+
+        # Test 4: Only Planner can broadcast
+        msg = Message(
+            episode_id="ep1",
+            msg_id=uuid4().hex,
+            sender=AgentID("Planner"),
+            recipient="BROADCAST",
+            topo_epoch=Epoch(0),
+            payload={},
+        )
+        assert await router.route(msg) is True, "Planner BROADCAST should be allowed"
+
 
 @pytest.mark.asyncio
 class TestChainTopology:
