@@ -45,11 +45,13 @@ Implemented a complete minimal APEX runtime system with async-first design, supp
   - Sandbox directory management
 
 - **LLM Client** (`apex/llm/client.py`):
-  - Ollama integration for local inference
-  - Token tracking with budget enforcement (10K default)
-  - Mock mode for testing without LLM (CI safety)
-  - Batch completion support with semaphore
-  - Structured output parsing for JSON responses
+  - Portable multi-instance manager with process isolation
+  - Two backends: llama.cpp (Metal) for Mac, HF+bitsandbytes (CUDA) for H100
+  - 5 independent model instances (one per agent role)
+  - Token tracking with hard budget enforcement (10K default)
+  - Warmup and readiness gating on startup
+  - Per-request timeout (180s) and progress-aware episode timeout (30min+extensions)
+  - Mock/stub mode for testing without LLM (CI safety)
 
 ### A3: Agents & Semantics
 - **Topology Semantics** (`apex/topology/semantics.py`):

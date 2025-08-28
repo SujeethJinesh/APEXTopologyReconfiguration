@@ -68,6 +68,26 @@ def main():
         help="Path to frozen task list JSONL (ensures identical tasks across policies)"
     )
     
+    # Timeout options
+    parser.add_argument(
+        "--episode-timeout-s",
+        type=int,
+        default=1800,
+        help="Episode timeout in seconds (default 30 min)"
+    )
+    parser.add_argument(
+        "--llm-timeout-s",
+        type=int,
+        default=180,
+        help="Per-LLM-request timeout in seconds (default 3 min)"
+    )
+    parser.add_argument(
+        "--progress-extend-s",
+        type=int,
+        default=120,
+        help="Extend episode timeout by this when progress detected (default 2 min)"
+    )
+    
     args = parser.parse_args()
     
     # Network gating check for SWE mode
