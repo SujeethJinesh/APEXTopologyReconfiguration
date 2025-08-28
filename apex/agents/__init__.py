@@ -1,3 +1,5 @@
+"""Scripted agents for APEX runtime."""
+
 from __future__ import annotations
 
 from .base import BaseAgent

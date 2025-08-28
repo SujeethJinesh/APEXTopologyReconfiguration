@@ -1,78 +1,111 @@
-from __future__ import annotations
+"""Switch engine for atomic topology transitions.
+
+Implements the PREPARE→QUIESCE→COMMIT/ABORT protocol for
+safe topology switching with bounded quiesce time.
+"""
 
 import asyncio
 import time
-from typing import Dict, Tuple
+from typing import Any, Dict
 
-from apex.config.defaults import QUIESCE_DEADLINE_MS
-
-from .message import Epoch
 from .router import Router
 
 
 class SwitchEngine:
-    """
-    Implements PREPARE → QUIESCE → COMMIT/ABORT.
-    Uses Router for queue control and epoch enforcement.
+    """Atomic topology switch engine.
+
+    Implements three-phase switching protocol:
+    1. PREPARE: Enable buffering to next epoch
+    2. QUIESCE: Wait for active queues to drain (bounded)
+    3. COMMIT/ABORT: Complete or rollback the switch
     """
 
-    def __init__(self, router: Router, quiesce_deadline_ms: int = QUIESCE_DEADLINE_MS) -> None:
+    def __init__(self, router: Router, quiesce_deadline_ms: int = 50):
+        """Initialize switch engine.
+
+        Args:
+            router: Message router instance
+            quiesce_deadline_ms: Max milliseconds to wait for quiesce
+        """
         self._router = router
-        self._topology: str = "star"  # neutral default; semantics added in later milestones
-        self._quiesce_deadline_ms = int(quiesce_deadline_ms)
-        self._switch_lock = asyncio.Lock()
+        self._deadline_ms = quiesce_deadline_ms
+        self._switch_count = 0
+        self._abort_count = 0
 
-    def active(self) -> Tuple[str, Epoch]:
-        return self._topology, Epoch(self._router.active_epoch)
+    async def switch_to(self, target_topo: str) -> Dict[str, Any]:
+        """Execute atomic topology switch.
 
-    async def switch_to(self, target: str) -> Dict:
+        Args:
+            target_topo: Name of target topology
+
+        Returns:
+            Result dict with:
+                ok: True if committed, False if aborted
+                epoch: Current epoch after operation
+                stats: Switch statistics
         """
-        PREPARE: new messages to Q_next
-        QUIESCE: wait until Q_active drains or deadline
-        COMMIT: atomic swap (if drained)
-        ABORT: re-enqueue Q_next into Q_active (if not drained)
-        """
-        async with self._switch_lock:
-            t0 = time.monotonic()
-            await self._router.start_switch()
-            t_prepare_done = time.monotonic()
+        t0 = time.monotonic()
 
-            deadline = t_prepare_done + (self._quiesce_deadline_ms / 1000.0)
-            # Wait for active to drain with cooperative sleeps
-            while self._router.active_has_pending():
-                if time.monotonic() >= deadline:
-                    # ABORT
-                    dropped_by_reason = await self._router.abort_switch()
-                    t_abort_done = time.monotonic()
-                    return {
-                        "ok": False,
-                        "epoch": int(self._router.active_epoch),
-                        "stats": {
-                            "phase_ms": {
-                                "prepare": int((t_prepare_done - t0) * 1000),
-                                "quiesce": int((t_abort_done - t_prepare_done) * 1000),
-                                "commit_or_abort": 0,
-                            },
-                            "migrated": 0,
-                            "dropped_by_reason": dropped_by_reason,
-                        },
-                    }
-                await asyncio.sleep(0.001)
+        # PREPARE: Enable buffering to next epoch
+        self._router.enable_next_buffering()
 
-            # COMMIT
-            await self._router.commit_switch()
-            self._topology = target
-            t_commit_done = time.monotonic()
+        # QUIESCE: Wait for active queues to drain
+        deadline = t0 + (self._deadline_ms / 1000.0)
+        drained = False
+
+        while time.monotonic() < deadline:
+            if self._router.is_active_drained():
+                drained = True
+                break
+            # Yield control briefly
+            await asyncio.sleep(0.001)  # 1ms granularity
+
+        # COMMIT or ABORT
+        if drained:
+            # COMMIT: Advance to next epoch
+            self._router.commit_epoch()
+            self._switch_count += 1
+
+            elapsed_ms = (time.monotonic() - t0) * 1000
             return {
                 "ok": True,
-                "epoch": int(self._router.active_epoch),
+                "epoch": int(self._router.active_epoch()),
                 "stats": {
-                    "phase_ms": {
-                        "prepare": int((t_prepare_done - t0) * 1000),
-                        "quiesce": int((t_commit_done - t_prepare_done) * 1000),
-                        "commit_or_abort": 0,
-                    },
-                    "migrated": 0,
-                    "dropped_by_reason": {},
+                    "phase": "COMMIT",
+                    "target_topo": target_topo,
+                    "elapsed_ms": elapsed_ms,
+                    "switch_count": self._switch_count,
+                    "abort_count": self._abort_count,
                 },
             }
+        else:
+            # ABORT: Re-enqueue next epoch messages
+            self._router.reenqueue_next_into_active()
+            self._abort_count += 1
+
+            elapsed_ms = (time.monotonic() - t0) * 1000
+            return {
+                "ok": False,
+                "epoch": int(self._router.active_epoch()),
+                "stats": {
+                    "phase": "ABORT",
+                    "target_topo": target_topo,
+                    "elapsed_ms": elapsed_ms,
+                    "reason": "Quiesce timeout",
+                    "switch_count": self._switch_count,
+                    "abort_count": self._abort_count,
+                },
+            }
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Get switch engine statistics.
+
+        Returns:
+            Statistics dictionary
+        """
+        return {
+            "switch_count": self._switch_count,
+            "abort_count": self._abort_count,
+            "current_epoch": int(self._router.active_epoch()),
+            "quiesce_deadline_ms": self._deadline_ms,
+        }
