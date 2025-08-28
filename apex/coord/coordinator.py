@@ -5,10 +5,11 @@ dwell/cooldown periods to prevent topology thrashing.
 """
 
 import asyncio
+import json
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
-from ..runtime.router import Router
+from ..runtime.router import Router, TopologyType
 from ..runtime.switch import SwitchEngine
 
 
@@ -43,11 +44,13 @@ class Coordinator:
         self._lock = asyncio.Lock()
         self._steps_since_switch = 0
         self._cooldown = 0
-        self._active_topo = "star"  # Default starting topology
-        self._pending_switch: Optional[str] = None
+        self._active_topo: TopologyType = "star"  # Default starting topology
+        self._pending_switch: Optional[TopologyType] = None
         self._switch_history = []
+        self._topology_changed_event = asyncio.Event()
+        self._last_event_data: Optional[Dict[str, Any]] = None
 
-    async def maybe_switch(self, target: str) -> Optional[Dict[str, Any]]:
+    async def maybe_switch(self, target: TopologyType) -> Optional[Dict[str, Any]]:
         """Attempt topology switch if conditions met.
 
         Args:
@@ -106,7 +109,9 @@ class Coordinator:
 
             return result
 
-    async def _emit_topology_changed(self, old_topo: str, new_topo: str, epoch: int):
+    async def _emit_topology_changed(
+        self, old_topo: TopologyType, new_topo: TopologyType, epoch: int
+    ):
         """Emit topology change event.
 
         Args:
@@ -114,17 +119,48 @@ class Coordinator:
             new_topo: New topology
             epoch: New epoch number
         """
-        # For MVP, just log the change
-        # In production, would publish to event bus
-        pass
+        # Store event data and trigger event
+        self._last_event_data = {
+            "from": old_topo,
+            "to": new_topo,
+            "epoch": epoch,
+        }
+        self._topology_changed_event.set()
 
-    def get_active_topology(self) -> str:
+        # Also log as JSONL for analysis
+        _ = json.dumps(
+            {
+                "event": "TOPOLOGY_CHANGED",
+                "from": old_topo,
+                "to": new_topo,
+                "epoch": epoch,
+            }
+        )
+        # In production, write to log file
+
+    def get_active_topology(self) -> TopologyType:
         """Get current active topology."""
         return self._active_topo
 
-    def get_pending_switch(self) -> Optional[str]:
+    def get_pending_switch(self) -> Optional[TopologyType]:
         """Get pending switch target if any."""
         return self._pending_switch
+
+    async def wait_for_topology_change(self, timeout: Optional[float] = None) -> bool:
+        """Wait for topology change event.
+
+        Args:
+            timeout: Maximum seconds to wait
+
+        Returns:
+            True if event occurred, False if timeout
+        """
+        try:
+            await asyncio.wait_for(self._topology_changed_event.wait(), timeout=timeout)
+            self._topology_changed_event.clear()
+            return True
+        except asyncio.TimeoutError:
+            return False
 
     def get_stats(self) -> Dict[str, Any]:
         """Get coordinator statistics.

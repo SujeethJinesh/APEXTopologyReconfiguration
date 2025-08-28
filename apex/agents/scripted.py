@@ -127,6 +127,15 @@ class ScriptedAgent:
             # No topology, send back to sender
             valid_recipients = {original_msg.sender}
 
+        # Check if this would be a broadcast in flat topology
+        if len(valid_recipients) > 1:
+            # In flat topology, stamp fanout for router validation
+            payload = payload.copy()  # Don't mutate original
+            payload["_fanout"] = len(valid_recipients)
+
+            # For MVP, send to up to 2 recipients (flat topology limit)
+            valid_recipients = set(list(valid_recipients)[:2])
+
         # Send to first valid recipient (simplified routing)
         if valid_recipients:
             recipient = next(iter(valid_recipients))

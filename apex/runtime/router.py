@@ -5,9 +5,20 @@ atomic epoch switching and FIFO-preserving re-enqueue on abort.
 """
 
 import asyncio
-from typing import Dict, Optional, Tuple
+from typing import Dict, Literal, Optional, Set, Tuple
 
 from .message import AgentID, Epoch, Message
+
+# Topology types
+TopologyType = Literal["star", "chain", "flat"]
+
+# Chain topology next hop mapping
+CHAIN_NEXT = {
+    AgentID("Planner"): AgentID("Coder"),
+    AgentID("Coder"): AgentID("Runner"),
+    AgentID("Runner"): AgentID("Critic"),
+    AgentID("Critic"): None,  # End of chain
+}
 
 
 class Router:
@@ -28,6 +39,14 @@ class Router:
         self._active_epoch: Epoch = Epoch(0)
         self._next_epoch: Epoch = Epoch(1)
         self._accepting_next = False  # Set during PREPARE phase
+        self._topology: TopologyType = "star"  # Default topology
+        self._known_agents: Set[AgentID] = {
+            AgentID("Manager"),
+            AgentID("Planner"),
+            AgentID("Coder"),
+            AgentID("Runner"),
+            AgentID("Critic"),
+        }
 
     def _q(self, agent: AgentID, epoch: Epoch) -> asyncio.Queue[Message]:
         """Get or create queue for (agent, epoch) pair."""
@@ -44,15 +63,61 @@ class Router:
         """Get next epoch (for buffering during switch)."""
         return self._next_epoch
 
+    def set_topology(self, topology: TopologyType):
+        """Set the current topology for routing enforcement."""
+        self._topology = topology
+
+    def _validate_topology(self, msg: Message) -> bool:
+        """Validate message against topology constraints.
+
+        Args:
+            msg: Message to validate
+
+        Returns:
+            True if allowed by topology, False otherwise
+        """
+        if self._topology == "star":
+            # In star: only Planner may broadcast; all traffic via Planner
+            if msg.recipient == "BROADCAST":
+                return msg.sender == AgentID("Planner")
+            # All messages must involve Planner as sender or recipient
+            return msg.sender == AgentID("Planner") or msg.recipient == AgentID("Planner")
+
+        elif self._topology == "chain":
+            # In chain: enforce fixed next hop only
+            if msg.recipient == "BROADCAST":
+                return False  # No broadcast in chain
+            next_hop = CHAIN_NEXT.get(msg.sender)
+            if next_hop is None and msg.sender == AgentID("Critic"):
+                # Critic can send back to Manager
+                return msg.recipient == AgentID("Manager")
+            return msg.recipient == next_hop
+
+        elif self._topology == "flat":
+            # In flat: enforce fan-out bound (≤2)
+            if msg.recipient == "BROADCAST":
+                # Check fanout metadata
+                fanout = msg.payload.get("_fanout", len(self._known_agents) - 1)
+                if fanout > 2:
+                    raise ValueError(f"FLAT: fan-out {fanout} > 2 not allowed")
+            return True
+
+        return False
+
     async def route(self, msg: Message) -> bool:
-        """Route message to appropriate queue.
+        """Route message to appropriate queue with topology enforcement.
 
         Args:
             msg: Message to route
 
         Returns:
-            True if queued successfully, False if queue full
+            True if queued successfully, False if rejected or queue full
         """
+        # Validate topology constraints
+        if not self._validate_topology(msg):
+            msg.drop_reason = f"Topology {self._topology} violation"
+            return False
+
         # Route to active or next epoch based on message epoch
         if msg.topo_epoch == self._active_epoch:
             epoch = self._active_epoch
@@ -60,19 +125,29 @@ class Router:
             epoch = self._next_epoch
         else:
             # Message from wrong epoch
+            msg.drop_reason = f"Wrong epoch: {msg.topo_epoch}"
             return False
 
-        # Handle broadcast by creating copies for all agents
+        # Handle broadcast
         if msg.recipient == "BROADCAST":
-            # For MVP, limit broadcast to known agents (simplified)
-            # In production, maintain agent registry
-            return True  # Simplified for MVP
+            # Route to all agents except sender
+            success = True
+            for agent_id in self._known_agents:
+                if agent_id != msg.sender:
+                    q = self._q(agent_id, epoch)
+                    try:
+                        q.put_nowait(msg)
+                    except asyncio.QueueFull:
+                        success = False
+            return success
 
+        # Single recipient
         q = self._q(msg.recipient, epoch)
         try:
             q.put_nowait(msg)
             return True
         except asyncio.QueueFull:
+            msg.drop_reason = "Queue full"
             return False
 
     async def dequeue(

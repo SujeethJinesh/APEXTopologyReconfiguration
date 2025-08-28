@@ -5,6 +5,7 @@ Provides safe test execution within controlled environment.
 
 import asyncio
 import os
+import re
 import tempfile
 import time
 from dataclasses import dataclass
@@ -232,6 +233,100 @@ class MCPTestRunner:
             return {"valid": False, "error": f"Syntax error at line {e.lineno}: {e.msg}"}
         except Exception as e:
             return {"valid": False, "error": str(e)}
+
+    async def discover_tests(self, test_dir: str) -> List[str]:
+        """Discover test files in directory.
+
+        Args:
+            test_dir: Directory to search for tests
+
+        Returns:
+            List of test file paths
+        """
+        test_files = []
+        test_path = Path(test_dir)
+
+        if test_path.exists() and test_path.is_dir():
+            # Find all test_*.py and *_test.py files
+            test_files.extend(str(p) for p in test_path.glob("test_*.py"))
+            test_files.extend(str(p) for p in test_path.glob("*_test.py"))
+            test_files.extend(str(p) for p in test_path.rglob("test_*.py"))
+            test_files.extend(str(p) for p in test_path.rglob("*_test.py"))
+
+        return sorted(list(set(test_files)))
+
+    async def run_tests(
+        self, test_paths: Optional[List[str]] = None, timeout_s: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """Run tests and return structured results.
+
+        Args:
+            test_paths: Specific test files to run (None = discover)
+            timeout_s: Override timeout
+
+        Returns:
+            Structured test results with pass/fail counts
+        """
+        _ = timeout_s or self.config.timeout_seconds  # Will use in subprocess call
+
+        if test_paths is None:
+            # Discover tests in current directory
+            test_paths = await self.discover_tests(".")
+
+        if not test_paths:
+            return {
+                "success": False,
+                "error": "No tests found",
+                "passed": 0,
+                "failed": 0,
+                "skipped": 0,
+                "total": 0,
+                "duration": 0.0,
+            }
+
+        # Run pytest with JSON output for structured parsing
+        cmd = [
+            self.config.python_path,
+            "-m",
+            "pytest",
+            "--tb=short",
+            "-q",  # Quiet mode
+            *test_paths,
+        ]
+
+        start_time = time.time()
+        result = await self._run_command(cmd)
+        duration = time.time() - start_time
+
+        # Parse pytest output for test counts
+        output = result.get("stdout", "")
+
+        # Parse summary line (e.g., "3 passed, 1 failed, 2 skipped in 1.23s")
+        passed = 0
+        failed = 0
+        skipped = 0
+
+        # Look for pytest summary patterns
+        if match := re.search(r"(\d+) passed", output):
+            passed = int(match.group(1))
+        if match := re.search(r"(\d+) failed", output):
+            failed = int(match.group(1))
+        if match := re.search(r"(\d+) skipped", output):
+            skipped = int(match.group(1))
+
+        total = passed + failed + skipped
+
+        return {
+            "success": failed == 0 and total > 0,
+            "passed": passed,
+            "failed": failed,
+            "skipped": skipped,
+            "total": total,
+            "duration": duration,
+            "stdout": result.get("stdout", ""),
+            "stderr": result.get("stderr", ""),
+            "exit_code": result.get("exit_code", -1),
+        }
 
 
 class TestSandbox:

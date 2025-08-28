@@ -44,8 +44,8 @@ class MCPFileSystem:
         # Create root if it doesn't exist
         self.root.mkdir(parents=True, exist_ok=True)
 
-    def _validate_path(self, path: str) -> Path:
-        """Validate and resolve path within root.
+    def _safe_path(self, path: str) -> Path:
+        """Validate and resolve path within root with strict checks.
 
         Args:
             path: Path to validate
@@ -54,21 +54,33 @@ class MCPFileSystem:
             Resolved absolute path
 
         Raises:
-            ValueError: If path escapes root
+            PermissionError: If path escapes sandbox or contains denied patterns
         """
+        # Reject paths with .. to prevent traversal
+        if ".." in path:
+            raise PermissionError(f"FS: path traversal denied: {path}")
+
+        # Reject absolute paths
+        if Path(path).is_absolute():
+            raise PermissionError(f"FS: absolute path denied: {path}")
+
         # Resolve to absolute path within root
         abs_path = (self.root / path).resolve()
 
-        # Check if path is within root
+        # Check if path is within root (handles symlinks)
         if not str(abs_path).startswith(str(self.root)):
-            raise ValueError(f"Path escapes root: {path}")
+            raise PermissionError(f"FS: path escapes sandbox: {path}")
 
         # Check deny patterns
         for pattern in self.config.deny_patterns:
             if pattern in str(abs_path):
-                raise ValueError(f"Path contains denied pattern {pattern}: {path}")
+                raise PermissionError(f"FS: denied pattern {pattern}: {path}")
 
         return abs_path
+
+    def _validate_path(self, path: str) -> Path:
+        """Legacy method for compatibility."""
+        return self._safe_path(path)
 
     async def read(self, path: str) -> str:
         """Read file contents.

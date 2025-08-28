@@ -6,9 +6,21 @@ safe topology switching with bounded quiesce time.
 
 import asyncio
 import time
-from typing import Any, Dict
+from enum import Enum
+from typing import Any, Dict, Tuple
 
-from .router import Router
+from .message import Epoch
+from .router import Router, TopologyType
+
+
+class SwitchPhase(Enum):
+    """Switch protocol phases."""
+
+    IDLE = "IDLE"
+    PREPARE = "PREPARE"
+    QUIESCE = "QUIESCE"
+    COMMIT = "COMMIT"
+    ABORT = "ABORT"
 
 
 class SwitchEngine:
@@ -31,8 +43,18 @@ class SwitchEngine:
         self._deadline_ms = quiesce_deadline_ms
         self._switch_count = 0
         self._abort_count = 0
+        self._phase = SwitchPhase.IDLE
+        self._current_topology: TopologyType = "star"
 
-    async def switch_to(self, target_topo: str) -> Dict[str, Any]:
+    def active(self) -> Tuple[TopologyType, Epoch]:
+        """Get current active topology and epoch.
+
+        Returns:
+            Tuple of (topology, epoch)
+        """
+        return (self._current_topology, self._router.active_epoch())
+
+    async def switch_to(self, target_topo: TopologyType) -> Dict[str, Any]:
         """Execute atomic topology switch.
 
         Args:
@@ -47,9 +69,11 @@ class SwitchEngine:
         t0 = time.monotonic()
 
         # PREPARE: Enable buffering to next epoch
+        self._phase = SwitchPhase.PREPARE
         self._router.enable_next_buffering()
 
         # QUIESCE: Wait for active queues to drain
+        self._phase = SwitchPhase.QUIESCE
         deadline = t0 + (self._deadline_ms / 1000.0)
         drained = False
 
@@ -63,8 +87,12 @@ class SwitchEngine:
         # COMMIT or ABORT
         if drained:
             # COMMIT: Advance to next epoch
+            self._phase = SwitchPhase.COMMIT
             self._router.commit_epoch()
+            self._router.set_topology(target_topo)
+            self._current_topology = target_topo
             self._switch_count += 1
+            self._phase = SwitchPhase.IDLE
 
             elapsed_ms = (time.monotonic() - t0) * 1000
             return {
@@ -79,9 +107,11 @@ class SwitchEngine:
                 },
             }
         else:
-            # ABORT: Re-enqueue next epoch messages
+            # ABORT: Re-enqueue next epoch messages preserving FIFO
+            self._phase = SwitchPhase.ABORT
             self._router.reenqueue_next_into_active()
             self._abort_count += 1
+            self._phase = SwitchPhase.IDLE
 
             elapsed_ms = (time.monotonic() - t0) * 1000
             return {

@@ -4,6 +4,7 @@ This module defines the core Message type used throughout the APEX runtime,
 including retry fields and epoch tracking for topology switching.
 """
 
+import json
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, Literal, NewType, Optional, Union
@@ -11,6 +12,9 @@ from typing import Any, Dict, Literal, NewType, Optional, Union
 # Type aliases for clarity
 AgentID = NewType("AgentID", str)
 Epoch = NewType("Epoch", int)
+
+# Size limit for message payload (512 KB)
+_MAX_PAYLOAD_BYTES = 512 * 1024
 
 
 @dataclass  # Mutable for retry fields
@@ -42,3 +46,10 @@ class Message:
     expires_ts: float = 0.0
     redelivered: bool = False
     drop_reason: Optional[str] = None
+
+    def __post_init__(self):
+        """Validate message constraints."""
+        # Guard against oversized payloads
+        sz = len(json.dumps(self.payload).encode("utf-8"))
+        if sz > _MAX_PAYLOAD_BYTES:
+            raise ValueError(f"Message payload too large: {sz} > 512 KiB")

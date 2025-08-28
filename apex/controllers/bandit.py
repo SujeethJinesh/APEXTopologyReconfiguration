@@ -40,29 +40,49 @@ class Context:
         """Convert context to feature vector.
 
         Returns:
-            8-dimensional feature vector
+            8-dimensional feature vector per MVP spec:
+            - topology one-hots (3)
+            - steps_since_switch/K_dwell
+            - planner_share
+            - coder_runner_share
+            - critic_share
+            - token_headroom_pct
         """
-        # Phase encoding (3 dims)
+        # Phase encoding (3 dims) - used as proxy for topology preference
         phase_vec = [0, 0, 0]
         if self.phase == "planning":
-            phase_vec[0] = 1
+            phase_vec[0] = 1  # Star topology preferred
         elif self.phase == "implementation":
-            phase_vec[1] = 1
+            phase_vec[1] = 1  # Chain topology preferred
         elif self.phase == "debug":
-            phase_vec[2] = 1
+            phase_vec[2] = 1  # Flat topology preferred
 
-        # Normalize continuous features
+        # Compute derived features
+        K_DWELL = 5  # Dwell constant
+        steps_since_switch = min(1.0, self.iteration / K_DWELL)
+
+        # Agent share proxies (based on message rate as proxy)
+        planner_share = min(1.0, self.message_rate / 10.0)
+        coder_runner_share = min(1.0, self.queue_depth / 100.0)
+        critic_share = self.error_rate  # Higher errors = more critic activity
+
+        # Token headroom percentage
+        MAX_TOKENS = 10_000
+        token_headroom_pct = max(0.0, 1.0 - self.token_usage / MAX_TOKENS)
+
+        # Exact 8 features per spec
         features = [
-            phase_vec[0],
-            phase_vec[1],
-            phase_vec[2],
-            min(1.0, self.message_rate / 10.0),  # Normalize to [0,1]
-            min(1.0, self.queue_depth / 100.0),
-            min(1.0, self.token_usage / 1000.0),
-            self.error_rate,  # Already [0,1]
-            self.success_rate,  # Already [0,1]
+            phase_vec[0],  # topology_star
+            phase_vec[1],  # topology_chain
+            phase_vec[2],  # topology_flat
+            steps_since_switch,  # steps_since_switch/K_dwell
+            planner_share,  # planner_share
+            coder_runner_share,  # coder_runner_share
+            critic_share,  # critic_share
+            token_headroom_pct,  # token_headroom_pct
         ]
 
+        assert len(features) == 8, f"Must have exactly 8 features, got {len(features)}"
         return np.array(features, dtype=np.float32)
 
 
@@ -147,18 +167,38 @@ class BanditSwitch:
             config: Bandit configuration
         """
         self.config = config
-        self.epsilon = config.epsilon
+        self.initial_epsilon = 0.2  # Starting epsilon
+        self.final_epsilon = 0.05  # Final epsilon
+        self.epsilon_decay_decisions = 5000  # Decisions to reach final epsilon
+        self.decision_count = 0  # Track total decisions for epsilon schedule
 
         # Arms (topologies)
         self.arms = ["star", "chain", "flat"]
 
-        # Ridge regressors for each arm
-        self.models = {arm: RidgeRegressor(config.feature_dim, config.alpha) for arm in self.arms}
+        # Ridge regressors for each arm (ensure 8 features)
+        self.models = {arm: RidgeRegressor(8, config.alpha) for arm in self.arms}
 
         # History tracking
         self.history = deque(maxlen=config.history_size)
         self.episode_count = 0
         self.total_reward = 0.0
+        self.switches_this_episode = 0
+
+    def _get_epsilon(self) -> float:
+        """Get current epsilon value based on schedule.
+
+        Returns:
+            Current epsilon (linear decay from 0.2 to 0.05 over 5k decisions)
+        """
+        if self.decision_count >= self.epsilon_decay_decisions:
+            return self.final_epsilon
+
+        # Linear decay
+        decay_progress = self.decision_count / self.epsilon_decay_decisions
+        epsilon = (
+            self.initial_epsilon - (self.initial_epsilon - self.final_epsilon) * decay_progress
+        )
+        return epsilon
 
     def select_topology(self, context: Context) -> str:
         """Select topology given context.
@@ -170,11 +210,23 @@ class BanditSwitch:
             Selected topology name
         """
         features = context.to_features()
+        self.decision_count += 1
+
+        # Get current epsilon from schedule
+        epsilon = self._get_epsilon()
+
+        # Log controller decision
+        decision_log = {
+            "event": "controller_decision",
+            "epsilon": epsilon,
+            "decision_count": self.decision_count,
+        }
 
         # Epsilon-greedy selection
-        if np.random.random() < self.epsilon:
+        if np.random.random() < epsilon:
             # Explore: random selection
             selected = np.random.choice(self.arms)
+            decision_log["action"] = "explore"
         else:
             # Exploit: select best arm
             rewards = {}
@@ -182,6 +234,10 @@ class BanditSwitch:
                 rewards[arm] = self.models[arm].predict(features)
 
             selected = max(rewards, key=rewards.get)
+            decision_log["action"] = "exploit"
+
+        decision_log["selected"] = selected
+        # In production, write to log file
 
         # Record selection
         self.history.append(
@@ -190,6 +246,7 @@ class BanditSwitch:
                 "features": features,
                 "selected": selected,
                 "timestamp": time.time(),
+                "epsilon": epsilon,
             }
         )
 
@@ -211,11 +268,15 @@ class BanditSwitch:
         # Update statistics
         self.total_reward += reward
 
-        # Decay epsilon
-        self.epsilon = max(self.config.min_epsilon, self.epsilon * self.config.decay_rate)
+        # Note: Epsilon decay is now handled by schedule, not per-update
 
     def compute_reward(
-        self, success: bool, tokens_used: int, time_elapsed: float, iterations: int
+        self,
+        success: bool,
+        tokens_used: int,
+        time_elapsed: float,
+        iterations: int,
+        switched_this_tick: bool = False,
     ) -> float:
         """Compute reward from episode outcome.
 
@@ -224,20 +285,25 @@ class BanditSwitch:
             tokens_used: Total tokens consumed
             time_elapsed: Episode duration
             iterations: Number of iterations
+            switched_this_tick: Whether a switch occurred this decision
 
         Returns:
-            Reward value
+            Reward value per MVP spec
         """
-        # Success bonus
-        reward = 10.0 if success else -5.0
+        reward = 0.0
 
-        # Efficiency penalties
-        reward -= tokens_used / 1000.0  # Token cost
-        reward -= time_elapsed / 60.0  # Time cost (minutes)
-        reward -= iterations * 0.5  # Iteration cost
+        # Switch penalty (-0.05 if switched this tick)
+        if switched_this_tick:
+            reward -= 0.05
 
-        # Clip reward to reasonable range
-        return np.clip(reward, -10.0, 10.0)
+        # Final success bonus (+1.0 on task success)
+        if success:
+            reward += 1.0
+
+        # Note: Per MVP spec, we only use switch penalty and success bonus
+        # Token/time costs could be added post-MVP
+
+        return reward
 
     def get_arm_stats(self) -> Dict[str, Dict[str, Any]]:
         """Get statistics for each arm.
@@ -276,6 +342,7 @@ class BanditSwitch:
 
     def reset_episode(self):
         """Reset for new episode."""
+        self.switches_this_episode = 0
         self.episode_count += 1
 
     def get_stats(self) -> Dict[str, Any]:
@@ -285,9 +352,10 @@ class BanditSwitch:
             Statistics dictionary
         """
         return {
-            "epsilon": self.epsilon,
+            "epsilon": self._get_epsilon(),
             "episodes": self.episode_count,
             "total_reward": self.total_reward,
+            "decision_count": self.decision_count,
             "selections": len(self.history),
             "arm_stats": self.get_arm_stats(),
         }
@@ -299,7 +367,7 @@ class BanditSwitch:
             Serializable state dictionary
         """
         state = {
-            "epsilon": self.epsilon,
+            "decision_count": self.decision_count,
             "episode_count": self.episode_count,
             "total_reward": self.total_reward,
             "models": {},
@@ -322,7 +390,7 @@ class BanditSwitch:
         Args:
             state: State dictionary
         """
-        self.epsilon = state["epsilon"]
+        self.decision_count = state.get("decision_count", 0)
         self.episode_count = state["episode_count"]
         self.total_reward = state["total_reward"]
 

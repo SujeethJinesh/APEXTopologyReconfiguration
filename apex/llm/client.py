@@ -127,6 +127,17 @@ class LLMClient:
         estimated_tokens = len(prompt) // 4 + (max_tokens or self.config.max_tokens)
 
         if not self.tracker.can_request(estimated_tokens):
+            # Log budget denial
+            _ = json.dumps(
+                {
+                    "event": "budget_denied",
+                    "estimated_tokens": estimated_tokens,
+                    "remaining": self.tracker.remaining(),
+                    "used": self.tracker.used,
+                }
+            )
+            # In production, write to log file
+
             return LLMResponse(
                 content="",
                 tokens_used=0,
@@ -228,10 +239,20 @@ class LLMClient:
         else:
             content += "Acknowledged. Processing request."
 
-        tokens = len(content) // 4
-        self.tracker.record_usage(tokens, {"mock": True})
+        # Better token estimation for testing
+        prompt_tokens = len(prompt) // 4
+        response_tokens = len(content) // 4
+        total_tokens = prompt_tokens + response_tokens
 
-        return LLMResponse(content=content, tokens_used=tokens, elapsed_seconds=0.01, model="mock")
+        # Record usage with both input and output
+        self.tracker.record_usage(total_tokens, {"mock": True, "prompt_tokens": prompt_tokens})
+
+        return LLMResponse(
+            content=content,
+            tokens_used=total_tokens,  # Total tokens used
+            elapsed_seconds=0.01,
+            model="mock",
+        )
 
     async def batch_complete(
         self, prompts: List[str], system: Optional[str] = None
