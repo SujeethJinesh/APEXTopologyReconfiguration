@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="3" failures="0" skipped="0" tests="3" time="2.764" timestamp="2025-08-27T21:57:21.396348-07:00" hostname="Sujeeths-MacBook-Pro.local"><testcase classname="" name="tests.test_bootstrap_pairing_invariance" time="0.000"><error message="collection failure">ImportError while importing test module '/Users/sujeethjinesh/Desktop/APEXTopologyReconfiguration/tests/test_bootstrap_pairing_invariance.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.11/3.11.13/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_bootstrap_pairing_invariance.py:8: in &lt;module&gt;
+    from scripts.compute_lift import compute_lift
+E   ModuleNotFoundError: No module named 'scripts'</error></testcase><testcase classname="" name="tests.test_cp_fixtures" time="0.000"><error message="collection failure">ImportError while importing test module '/Users/sujeethjinesh/Desktop/APEXTopologyReconfiguration/tests/test_cp_fixtures.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.11/3.11.13/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_cp_fixtures.py:7: in &lt;module&gt;
+    from scripts.compute_cp import clopper_pearson_upper, compute_cp
+E   ModuleNotFoundError: No module named 'scripts'</error></testcase><testcase classname="" name="tests.test_swe_real_smoke_external" time="0.000"><error message="collection failure">ImportError while importing test module '/Users/sujeethjinesh/Desktop/APEXTopologyReconfiguration/tests/test_swe_real_smoke_external.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.11/3.11.13/Frameworks/Python.framework/Versions/3.11/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_swe_real_smoke_external.py:11: in &lt;module&gt;
+    from scripts.compute_cp import compute_cp
+E   ModuleNotFoundError: No module named 'scripts'</error></testcase></testsuite></testsuites>
