@@ -56,7 +56,7 @@ Does an epoch-gated, dynamic topology controller improve Success@Budget on SWE-b
 - **Coordinator:** Holds switch_lock, enforces dwell_min_steps and cooldown, executes switch on controller decisions
 - **Controller (MVP policy):** BanditSwitch v1 (linear contextual bandit) choosing among {stay, star, chain, flat}; epsilon-greedy; no QR-DQN
 - **MCP (tools):** FS (read/write/patch/search) and Test (discover/run) adapters only. Git adapter deferred (we can rely on SWE-bench harness repo setup)
-- **LLM Service (portable, process-isolated):** APEX uses a multi-instance, process-based LLM manager.
+- **LLM Service (MVP):** Portable, process-isolated multi-instance client (N≤5 on Mac). Defaults: llama.cpp (Metal) on Mac (GGUF path via APEX_GGUF_MODEL_PATH), HF+4-bit on H100. No HTTP pooling. Per-call timeouts and hard token budget deny. One instance per agent role (stable hash mapping) to avoid context mixing.
   • Mac (dev): llama.cpp via llama-cpp-python (Metal enabled) loading GGUF (e.g., Llama 3.1 8B Instruct Q4)
   • H100 (prod path): HuggingFace Transformers (4-bit or fp16 via bitsandbytes/accelerate), one process per GPU
   • Concurrency: N independent processes → no shared context between agents

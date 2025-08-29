@@ -105,10 +105,21 @@ class LlamaCppMetalBackend:
             }
 
         try:
+            # Estimate prompt tokens and clamp max_new_tokens to context window
+            prompt_tokens_est = max(0, len(prompt) // 4)  # rough estimate
+            room = self.n_ctx - prompt_tokens_est - 64  # leave 64 token buffer
+            max_new_clamped = max(1, min(max_new_tokens, room))
+
+            if max_new_clamped < max_new_tokens:
+                print(
+                    f"[Instance {self.instance_id}] Clamped max_tokens "
+                    f"from {max_new_tokens} to {max_new_clamped} (context limit)"
+                )
+
             t0 = time.time()
             out = self._llm(
                 prompt,
-                max_tokens=max_new_tokens,
+                max_tokens=max_new_clamped,
                 temperature=temperature,
                 top_p=top_p,
                 stop=stop or [],

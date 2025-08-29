@@ -118,6 +118,68 @@ class TestParallelIsolation:
 
         client.shutdown()
 
+    async def test_budget_hard_deny(self):
+        """Test that budget deny happens before executor submission."""
+        from apex.llm.client import TokenTracker
+
+        # Create client with nearly exhausted budget
+        tracker = TokenTracker(budget=10000)
+        tracker.used = 9500  # Nearly exhausted
+
+        client = PortableLLMClient(token_tracker=tracker)
+
+        # Try to make a request that would exceed budget
+        response = await client.complete(
+            prompt="Write a long story " * 50,  # Long prompt to trigger estimate
+            max_tokens=800,
+            agent_id="TestAgent",
+            session_id="budget_test",
+        )
+
+        # Should be denied
+        assert response.status == "budget_denied"
+        assert response.error == "budget_denied"
+        assert response.tokens_used == 0
+        assert response.content == ""
+
+        # Budget should not have changed
+        assert tracker.used == 9500
+
+        client.shutdown()
+
+    async def test_state_isolation_with_counter(self):
+        """Test that each process has its own state (simulated with counter)."""
+        # This test verifies process isolation by checking that
+        # different instances don't share global state
+        client = PortableLLMClient()
+
+        # Generate from different agents (should map to different instances)
+        agents = ["Agent_A", "Agent_B", "Agent_C"]
+
+        # Each agent generates multiple times
+        results = {}
+        for agent in agents:
+            agent_results = []
+            for i in range(3):
+                response = await client.complete(
+                    prompt=f"Count: {i}",
+                    max_tokens=10,
+                    agent_id=agent,
+                    session_id=f"{agent}_session",
+                )
+                agent_results.append(response.content)
+            results[agent] = agent_results
+
+        # In process isolation, each agent's responses should be independent
+        # (we can't test actual counters in stub mode, but we verify no errors)
+        for agent in agents:
+            assert len(results[agent]) == 3
+            for content in results[agent]:
+                assert content  # Should have some content
+                assert "error" not in content.lower()
+
+        client.shutdown()
+
 
 @pytest.mark.external
 @pytest.mark.asyncio

@@ -9,7 +9,7 @@
 
 ### Integrated hierarchical-optimization + async-first design details to make the spec fully codegen-ready:
 
-1. **LLM service overhaul:** Replace Ollama/HTTP client with portable process-based LLM layer (llama.cpp/Metal on Mac; HF/Transformers on H100). Concurrency via process pool (N instances), per-instance warmup, and progress-aware timeouts (base + extension).
+1. **LLM service overhaul:** Replace Ollama/HTTP client with PortableMultiInstanceLLMManager. Concurrency: ProcessPoolExecutor(spawn); per-process singleton model; warmup; health ping; progress-aware episode timeout.
 
 2. **Hierarchical control stack:** Controller (top) → A2A Protocol Layer (agent comms & delegation) → MCP servers (tools) → LLM service (portable multi-instance) with explicit contracts.
 
@@ -42,6 +42,15 @@
 - APEX makes topology a first-class, switchable primitive with consistency guarantees, keeps systems overhead low, and learns when to switch under strict token/time budgets.
 - Hierarchical + async design ensures the controller stays fast (< 10 ms) while heavy lifting (LLM, tooling) happens below with connection pooling and parallelism.
 - We measure rigorously: pre-registered SLOs, Clopper-Pearson bounds, paired bootstraps, all from artifacts/logs.
+- **SLOs:** Controller p95 unaffected by backend; N≤5 workers; per-call timeout 120–180 s; episode 30 min + progress extensions.
+
+---
+
+## Setup Requirements
+
+- **Mac (Dev):** GGUF model needed on Mac (set APEX_GGUF_MODEL_PATH); llama-cpp-python with Metal support
+- **H100 (Prod):** HF token for model access (if private models); bitsandbytes for 4-bit quantization
+- **Security:** Deny oversized payloads and enforce path whitelist (already in A1–A4)
 
 ---
 

@@ -25,7 +25,9 @@ def _init_worker(backend_factory: Callable, worker_id: int):
     _WORKER_ID = worker_id
     _BACKEND = backend_factory(instance_id=worker_id)
     _BACKEND.start()
-    print(f"Worker {worker_id} initialized")
+    # Do warmup immediately on init
+    _BACKEND.warmup("Warmup test")
+    print(f"Worker {worker_id} initialized and warmed up")
 
 
 def _warmup_backend() -> bool:
@@ -109,12 +111,38 @@ class MultiInstanceLLMManager:
         """Start all backend instances and run warmup."""
         print(f"Starting {self._num} LLM instances...")
 
-        # Warmup all instances
-        print("Running warmup on all instances...")
-        await asyncio.gather(*[self.warmup(i) for i in range(self._num)])
+        # Health check barrier: ping each worker to ensure it's ready
+        print("Running health check on all instances...")
+        health_tasks = []
+        for i in range(self._num):
+            executor = self._executors[i]
+            health_tasks.append(asyncio.get_event_loop().run_in_executor(executor, _warmup_backend))
+
+        # Wait for all health checks
+        health_results = await asyncio.gather(*health_tasks, return_exceptions=True)
+
+        # Check health results
+        num_ready = 0
+        for i, result in enumerate(health_results):
+            if isinstance(result, Exception):
+                print(f"Worker {i} failed health check: {result}")
+                self._ready[i] = False
+            elif result:
+                self._ready[i] = True
+                num_ready += 1
+            else:
+                print(f"Worker {i} not ready")
+                self._ready[i] = False
+
+        # Fail fast if not enough instances are ready
+        if num_ready < 3:
+            raise RuntimeError(
+                f"Only {num_ready}/{self._num} instances ready. "
+                f"Need at least 3 for proper isolation."
+            )
 
         elapsed = time.time() - self._start_time
-        print(f"All {self._num} instances ready in {elapsed:.1f}s")
+        print(f"{num_ready}/{self._num} instances ready in {elapsed:.1f}s")
 
     async def warmup(self, instance_id: int) -> None:
         """Warmup a specific instance."""

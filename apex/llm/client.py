@@ -1,6 +1,7 @@
 """Portable LLM client with multi-instance backend support."""
 
 import asyncio
+import hashlib
 import logging
 import os
 import time
@@ -236,6 +237,7 @@ class PortableLLMClient:
         prompt_tokens_est = max(0, len(full_prompt) // 4)  # rough: 1 token per 4 chars
         # Clamp max_tokens to reasonable range
         max_out_tokens = max(1, min(max_tokens or self.config.max_tokens, 4096))
+        # Add 10% conservative buffer
         estimated_tokens = int((prompt_tokens_est + max_out_tokens) * 1.1)  # +10% buffer
 
         # Budget check (hard deny)
@@ -262,9 +264,12 @@ class PortableLLMClient:
         # Ensure manager is started
         await self.ensure_started()
 
-        # Choose instance based on agent_id (deterministic mapping)
+        # Choose instance based on agent_id (deterministic mapping using SHA-1)
         if agent_id:
-            instance_id = abs(hash(agent_id)) % self.config.num_instances
+            # Use SHA-1 for stable hashing across processes
+            h = hashlib.sha1(agent_id.encode("utf-8")).digest()
+            val = int.from_bytes(h[:8], "big", signed=False)
+            instance_id = val % self.config.num_instances
         else:
             instance_id = 0  # Default to first instance
 
