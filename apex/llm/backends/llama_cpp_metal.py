@@ -1,6 +1,8 @@
 """llama.cpp backend with Metal acceleration for Mac."""
 
+import os
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 
@@ -19,6 +21,7 @@ class LlamaCppMetalBackend:
         n_gpu_layers: int = -1,
         n_threads: int = 0,
         seed: int = 42,
+        cache_dir: Optional[str] = None,
     ):
         """Initialize the backend.
 
@@ -29,6 +32,7 @@ class LlamaCppMetalBackend:
             n_gpu_layers: Number of layers to offload to GPU (-1 for all)
             n_threads: Number of CPU threads (0 for auto)
             seed: Random seed for reproducibility
+            cache_dir: Optional cache directory for this instance
         """
         self.instance_id = instance_id
         self.model_path = model_path
@@ -37,6 +41,16 @@ class LlamaCppMetalBackend:
         self.n_threads = n_threads
         self.seed = seed
         self._llm = None
+
+        # Set up per-process cache directory
+        if cache_dir:
+            self.cache_dir = cache_dir
+        else:
+            self.cache_dir = Path.home() / ".cache" / "apex" / "llm" / f"worker_{instance_id}"
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+
+        # Set environment for this process's cache
+        os.environ["LLAMA_CACHE"] = str(self.cache_dir)
 
     def start(self) -> None:
         """Load the model."""
@@ -69,6 +83,28 @@ class LlamaCppMetalBackend:
     def stop(self) -> None:
         """Unload the model."""
         self._llm = None
+
+    def estimate_tokens(self, prompt: str, max_new_tokens: int) -> int:
+        """Estimate total tokens using the actual tokenizer.
+
+        Args:
+            prompt: Input prompt text
+            max_new_tokens: Maximum new tokens to generate
+
+        Returns:
+            Estimated total tokens (input + output)
+        """
+        if not self._llm:
+            # Fallback to heuristic if model not loaded
+            return (len(prompt) // 4) + max_new_tokens
+
+        try:
+            # Use actual tokenizer for accurate count
+            tokens = self._llm.tokenize(prompt.encode("utf-8"), add_bos=True)
+            return len(tokens) + max_new_tokens
+        except Exception:
+            # Fallback to heuristic on error
+            return (len(prompt) // 4) + max_new_tokens
 
     def generate(
         self,

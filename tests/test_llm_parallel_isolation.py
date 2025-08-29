@@ -147,6 +147,41 @@ class TestParallelIsolation:
 
         client.shutdown()
 
+    async def test_budget_deny_no_backend_call(self):
+        """Test that budget deny truly prevents backend invocation."""
+        from apex.llm.client import TokenTracker
+
+        # Create client with tiny budget
+        tracker = TokenTracker(budget=100)
+        tracker.used = 99  # Almost exhausted
+
+        client = PortableLLMClient(token_tracker=tracker)
+
+        # Track backend calls
+        backend_calls = []
+
+        # Monkey-patch the manager to track calls
+        original_ensure_started = client.ensure_started
+
+        async def track_ensure_started():
+            backend_calls.append("ensure_started")
+            await original_ensure_started()
+
+        client.ensure_started = track_ensure_started
+
+        # Request that exceeds budget
+        response = await client.complete(
+            prompt="Hello world",  # Even small prompt should exceed
+            max_tokens=50,
+            agent_id="TestAgent",
+        )
+
+        # Verify no backend initialization happened
+        assert len(backend_calls) == 0, f"Backend was initialized: {backend_calls}"
+        assert response.status == "budget_denied"
+
+        client.shutdown()
+
     async def test_state_isolation_with_counter(self):
         """Test that each process has its own state (simulated with counter)."""
         # This test verifies process isolation by checking that

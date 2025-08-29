@@ -199,6 +199,18 @@ class PortableLLMClient:
             self.config.mock_mode = True
             logger.info("LLM disabled (APEX_ALLOW_LLM not set), using mock mode")
 
+        # Log configuration on startup
+        model_info = (
+            defaults.GGUF_MODEL_PATH
+            if self.config.backend == "llama_cpp_metal"
+            else defaults.LLM_MODEL_ID
+        )
+        logger.info(
+            f"LLM Client initialized: backend={self.config.backend}, "
+            f"model={model_info}, instances={self.config.num_instances}, "
+            f"mock_mode={self.config.mock_mode}"
+        )
+
     async def ensure_started(self):
         """Ensure the manager is started and ready."""
         if not self._started:
@@ -233,12 +245,17 @@ class PortableLLMClient:
         else:
             full_prompt = prompt
 
-        # Estimate tokens with conservative factor and guardrails
-        prompt_tokens_est = max(0, len(full_prompt) // 4)  # rough: 1 token per 4 chars
-        # Clamp max_tokens to reasonable range
+        # Clamp max_tokens to reasonable range first
         max_out_tokens = max(1, min(max_tokens or self.config.max_tokens, 4096))
-        # Add 10% conservative buffer
-        estimated_tokens = int((prompt_tokens_est + max_out_tokens) * 1.1)  # +10% buffer
+
+        # Try to get accurate token estimate from backend if available
+        # This is a heuristic since we can't directly access worker backends from here
+        # TODO: Consider adding a token estimation endpoint to the manager
+        prompt_tokens_est = max(0, len(full_prompt) // 4)  # rough: 1 token per 4 chars
+        base_estimate = prompt_tokens_est + max_out_tokens
+
+        # Add 10% conservative buffer for safety
+        estimated_tokens = int(base_estimate * 1.1)  # +10% buffer
 
         # Budget check (hard deny)
         if not self.tracker.can_request(estimated_tokens):

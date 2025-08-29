@@ -135,14 +135,36 @@ class MultiInstanceLLMManager:
                 self._ready[i] = False
 
         # Fail fast if not enough instances are ready
-        if num_ready < 3:
+        min_required = min(3, self._num)  # Don't require 3 if user requested fewer
+        if num_ready < min_required:
             raise RuntimeError(
-                f"Only {num_ready}/{self._num} instances ready. "
-                f"Need at least 3 for proper isolation."
+                f"Only {num_ready}/{self._num} instances ready after warmup. "
+                f"Need at least {min_required} for proper isolation. "
+                f"Try: 1) Lower APEX_NUM_LLM_INSTANCES, 2) Check APEX_GGUF_MODEL_PATH, "
+                f"3) Ensure sufficient RAM (swap usage indicates OOM)"
             )
 
         elapsed = time.time() - self._start_time
         print(f"{num_ready}/{self._num} instances ready in {elapsed:.1f}s")
+
+        # Log health metrics as JSON for post-mortem analysis
+        import json
+        import logging
+
+        logger = logging.getLogger(__name__)
+        health_metrics = {
+            "event": "llm_warmup_complete",
+            "instances_ready": num_ready,
+            "instances_total": self._num,
+            "backend": (
+                self._backend_factory.__name__
+                if hasattr(self._backend_factory, "__name__")
+                else "unknown"
+            ),
+            "warmup_time_s": elapsed,
+            "timestamp": time.time(),
+        }
+        logger.info(json.dumps(health_metrics))
 
     async def warmup(self, instance_id: int) -> None:
         """Warmup a specific instance."""

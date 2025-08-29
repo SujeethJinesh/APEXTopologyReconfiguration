@@ -1,6 +1,7 @@
 """MVP defaults (subset used by tests; fuller set comes in later milestones)"""
 
 import os
+import platform
 
 # ===== Runtime Configuration =====
 QUIESCE_DEADLINE_MS = 50
@@ -13,11 +14,34 @@ MAX_ATTEMPTS = 5
 
 # ===== LLM Configuration =====
 # Backend selection: "llama_cpp_metal" (Mac) or "hf_cuda" (H100)
-APEX_LLM_BACKEND = os.getenv("APEX_LLM_BACKEND", "llama_cpp_metal")
+# Auto-detect platform if not specified
+
+if os.getenv("APEX_LLM_BACKEND"):
+    APEX_LLM_BACKEND = os.getenv("APEX_LLM_BACKEND")
+else:
+    # Auto-detect based on platform
+    if platform.system() == "Darwin":
+        APEX_LLM_BACKEND = "llama_cpp_metal"
+    else:
+        # Check for CUDA availability
+        try:
+            import torch
+
+            if torch.cuda.is_available():
+                APEX_LLM_BACKEND = "hf_cuda"
+            else:
+                APEX_LLM_BACKEND = "llama_cpp_metal"  # Fallback
+        except ImportError:
+            APEX_LLM_BACKEND = "llama_cpp_metal"  # Fallback
+
 LLM_BACKEND = APEX_LLM_BACKEND  # Alias for compatibility
 
 # Number of parallel model instances (one per process) - guardrailed
-APEX_NUM_LLM_INSTANCES = min(10, max(1, int(os.getenv("APEX_NUM_LLM_INSTANCES", "5"))))
+# Default to 3 on Mac to avoid swap storms with 64GB RAM
+DEFAULT_LLM_NUM_INSTANCES = 3 if platform.system() == "Darwin" else 5
+APEX_NUM_LLM_INSTANCES = min(
+    10, max(1, int(os.getenv("APEX_NUM_LLM_INSTANCES", str(DEFAULT_LLM_NUM_INSTANCES))))
+)
 LLM_NUM_INSTANCES = APEX_NUM_LLM_INSTANCES  # Alias
 
 # Context window size in tokens - guardrailed

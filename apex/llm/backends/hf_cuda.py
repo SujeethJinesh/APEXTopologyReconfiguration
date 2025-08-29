@@ -16,6 +16,7 @@ class HFCudaBitsBackend:
         instance_id: int,
         model_id: str,
         load_in_4bit: bool = True,
+        n_ctx: int = 4096,
     ):
         """Initialize the backend.
 
@@ -23,10 +24,12 @@ class HFCudaBitsBackend:
             instance_id: Instance identifier
             model_id: HuggingFace model ID
             load_in_4bit: Whether to use 4-bit quantization
+            n_ctx: Context window size
         """
         self.instance_id = instance_id
         self.model_id = model_id
         self.load_in_4bit = load_in_4bit
+        self.n_ctx = n_ctx
         self.model = None
         self.tok = None
         self.device = None
@@ -138,11 +141,21 @@ class HFCudaBitsBackend:
             inputs = self.tok(prompt, return_tensors="pt").to(self.device)
             input_len = inputs["input_ids"].shape[1]
 
+            # Clamp max_new_tokens to context window
+            room = self.n_ctx - input_len - 64  # leave 64 token buffer
+            max_new_clamped = max(1, min(max_new_tokens, room))
+
+            if max_new_clamped < max_new_tokens:
+                print(
+                    f"[Instance {self.instance_id}] Clamped max_tokens "
+                    f"from {max_new_tokens} to {max_new_clamped} (context limit)"
+                )
+
             # Generate
             with torch.no_grad():
                 outputs = self.model.generate(
                     **inputs,
-                    max_new_tokens=max_new_tokens,
+                    max_new_tokens=max_new_clamped,
                     temperature=temperature,
                     do_sample=True,
                     top_p=top_p,
