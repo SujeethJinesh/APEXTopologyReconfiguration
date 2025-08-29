@@ -14,28 +14,29 @@ try:
 except RuntimeError:
     pass  # Already set
 
-# Process-resident global backends (populated in child processes)
-_BACKENDS: Dict[int, LLMBackend] = {}
+# Process-resident global backend (one per worker process)
+_BACKEND: Optional[LLMBackend] = None
+_WORKER_ID: Optional[int] = None
 
 
-def _start_backend_proc(backend_factory: Callable, instance_id: int) -> bool:
-    """Start a backend in the process (called in child)."""
-    global _BACKENDS
-    backend = backend_factory(instance_id=instance_id)
-    backend.start()
-    _BACKENDS[instance_id] = backend
-    return True
+def _init_worker(backend_factory: Callable, worker_id: int):
+    """Initialize worker process with backend."""
+    global _BACKEND, _WORKER_ID
+    _WORKER_ID = worker_id
+    _BACKEND = backend_factory(instance_id=worker_id)
+    _BACKEND.start()
+    print(f"Worker {worker_id} initialized")
 
 
-def _warmup_in_proc(instance_id: int) -> bool:
-    """Warmup the backend (called in child)."""
-    b = _BACKENDS[instance_id]
-    b.warmup("warmup test")
-    return b.ready()
+def _warmup_backend() -> bool:
+    """Warmup the backend in this worker."""
+    if _BACKEND is None:
+        return False
+    _BACKEND.warmup("warmup test")
+    return _BACKEND.ready()
 
 
-def _generate_in_proc(
-    instance_id: int,
+def _generate_text(
     session_id: str,
     prompt: str,
     max_new_tokens: int,
@@ -44,9 +45,16 @@ def _generate_in_proc(
     stop: Optional[List[str]],
     timeout_s: int,
 ) -> Dict[str, Any]:
-    """Generate text in the backend process (called in child)."""
-    b = _BACKENDS[instance_id]
-    return b.generate(
+    """Generate text using this worker's backend."""
+    if _BACKEND is None:
+        return {
+            "text": "",
+            "tokens_in": 0,
+            "tokens_out": 0,
+            "finish_reason": "error",
+            "error": "Backend not initialized in worker",
+        }
+    return _BACKEND.generate(
         session_id=session_id,
         prompt=prompt,
         max_new_tokens=max_new_tokens,
@@ -81,10 +89,19 @@ class MultiInstanceLLMManager:
         """
         self._backend_factory = backend_factory
         self._num = num_instances
-        self._executor = ProcessPoolExecutor(
-            max_workers=num_instances,
-            mp_context=mp.get_context(spawn_ctx),
-        )
+
+        # Create N separate executors, each with one worker
+        # This ensures each worker gets a unique ID
+        self._executors = []
+        for i in range(num_instances):
+            executor = ProcessPoolExecutor(
+                max_workers=1,
+                mp_context=mp.get_context(spawn_ctx),
+                initializer=_init_worker,
+                initargs=(backend_factory, i),
+            )
+            self._executors.append(executor)
+
         self._ready = [False] * num_instances
         self._start_time = time.time()
 
@@ -92,15 +109,7 @@ class MultiInstanceLLMManager:
         """Start all backend instances and run warmup."""
         print(f"Starting {self._num} LLM instances...")
 
-        async def _start_one(i: int):
-            return await asyncio.get_event_loop().run_in_executor(
-                self._executor, _start_backend_proc, self._backend_factory, i
-            )
-
-        # Start all instances in parallel
-        await asyncio.gather(*[_start_one(i) for i in range(self._num)])
-
-        # Run warmup on all instances
+        # Warmup all instances
         print("Running warmup on all instances...")
         await asyncio.gather(*[self.warmup(i) for i in range(self._num)])
 
@@ -109,9 +118,8 @@ class MultiInstanceLLMManager:
 
     async def warmup(self, instance_id: int) -> None:
         """Warmup a specific instance."""
-        ok = await asyncio.get_event_loop().run_in_executor(
-            self._executor, _warmup_in_proc, instance_id
-        )
+        executor = self._executors[instance_id]
+        ok = await asyncio.get_event_loop().run_in_executor(executor, _warmup_backend)
         self._ready[instance_id] = bool(ok)
 
     def ready(self) -> bool:
@@ -155,11 +163,11 @@ class MultiInstanceLLMManager:
             }
 
         try:
+            executor = self._executors[instance_id]
             result = await asyncio.wait_for(
                 asyncio.get_event_loop().run_in_executor(
-                    self._executor,
-                    _generate_in_proc,
-                    instance_id,
+                    executor,
+                    _generate_text,
                     session_id,
                     prompt,
                     max_new_tokens,
@@ -171,6 +179,7 @@ class MultiInstanceLLMManager:
                 timeout=timeout_s,
             )
             return result
+
         except asyncio.TimeoutError:
             return {
                 "text": "",
@@ -179,6 +188,7 @@ class MultiInstanceLLMManager:
                 "finish_reason": "timeout",
                 "error": f"Generation timed out after {timeout_s}s",
             }
+
         except Exception as e:
             return {
                 "text": "",
@@ -190,8 +200,10 @@ class MultiInstanceLLMManager:
 
     async def aclose(self) -> None:
         """Async shutdown all instances cleanly."""
-        self._executor.shutdown(wait=False, cancel_futures=True)
+        for executor in self._executors:
+            executor.shutdown(wait=False, cancel_futures=True)
 
     def shutdown(self) -> None:
         """Shutdown all instances cleanly."""
-        self._executor.shutdown(wait=False, cancel_futures=True)
+        for executor in self._executors:
+            executor.shutdown(wait=False, cancel_futures=True)
