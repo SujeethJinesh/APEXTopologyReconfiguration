@@ -88,7 +88,28 @@ def main():
         help="Extend episode timeout by this when progress detected (default 2 min)"
     )
     
+    # LLM backend options
+    parser.add_argument(
+        "--llm-backend",
+        choices=["llama_cpp_metal", "hf_cuda"],
+        default="llama_cpp_metal",
+        help="LLM backend to use"
+    )
+    parser.add_argument(
+        "--num-llm-instances",
+        type=int,
+        default=5,
+        help="Number of LLM instances (processes)"
+    )
+    
     args = parser.parse_args()
+    
+    # Set environment variables from CLI args
+    os.environ["APEX_EPISODE_TIMEOUT_S"] = str(args.episode_timeout_s)
+    os.environ["APEX_LLM_TIMEOUT_S"] = str(args.llm_timeout_s)
+    os.environ["APEX_PROGRESS_EXTENSION_S"] = str(args.progress_extend_s)
+    os.environ["APEX_LLM_BACKEND"] = args.llm_backend
+    os.environ["APEX_NUM_LLM_INSTANCES"] = str(args.num_llm_instances)
     
     # Network gating check for SWE mode
     if args.mode == "swe" and not args.offline:

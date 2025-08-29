@@ -8,6 +8,12 @@ from typing import Any, Callable, Dict, List, Optional
 
 from .backends.base import LLMBackend
 
+# Force spawn context for correct process isolation (Mac + CUDA)
+try:
+    mp.set_start_method("spawn", force=True)
+except RuntimeError:
+    pass  # Already set
+
 # Process-resident global backends (populated in child processes)
 _BACKENDS: Dict[int, LLMBackend] = {}
 
@@ -53,13 +59,13 @@ def _generate_in_proc(
 
 class MultiInstanceLLMManager:
     """Spawns N model processes with true isolation.
-    
+
     Each process holds one model instance, providing:
     - True context separation per agent
     - Resilience (hung model doesn't block others)
     - Concurrent inference capability
     """
-    
+
     def __init__(
         self,
         backend_factory: Callable,
@@ -67,7 +73,7 @@ class MultiInstanceLLMManager:
         spawn_ctx: str = "spawn",
     ):
         """Initialize the manager.
-        
+
         Args:
             backend_factory: Factory function to create backend instances
             num_instances: Number of parallel model instances
@@ -81,37 +87,37 @@ class MultiInstanceLLMManager:
         )
         self._ready = [False] * num_instances
         self._start_time = time.time()
-        
+
     async def start(self) -> None:
         """Start all backend instances and run warmup."""
         print(f"Starting {self._num} LLM instances...")
-        
+
         async def _start_one(i: int):
             return await asyncio.get_event_loop().run_in_executor(
                 self._executor, _start_backend_proc, self._backend_factory, i
             )
-            
+
         # Start all instances in parallel
         await asyncio.gather(*[_start_one(i) for i in range(self._num)])
-        
+
         # Run warmup on all instances
         print("Running warmup on all instances...")
         await asyncio.gather(*[self.warmup(i) for i in range(self._num)])
-        
+
         elapsed = time.time() - self._start_time
         print(f"All {self._num} instances ready in {elapsed:.1f}s")
-        
+
     async def warmup(self, instance_id: int) -> None:
         """Warmup a specific instance."""
         ok = await asyncio.get_event_loop().run_in_executor(
             self._executor, _warmup_in_proc, instance_id
         )
         self._ready[instance_id] = bool(ok)
-        
+
     def ready(self) -> bool:
         """Check if all instances are ready."""
         return all(self._ready)
-    
+
     async def generate(
         self,
         instance_id: int,
@@ -125,7 +131,7 @@ class MultiInstanceLLMManager:
         timeout_s: int = 120,
     ) -> Dict[str, Any]:
         """Generate text using a specific instance.
-        
+
         Args:
             instance_id: Which backend instance to use
             session_id: Session identifier for context
@@ -135,7 +141,7 @@ class MultiInstanceLLMManager:
             top_p: Nucleus sampling threshold
             stop: Optional stop sequences
             timeout_s: Request timeout
-            
+
         Returns:
             Generation result dictionary
         """
@@ -147,7 +153,7 @@ class MultiInstanceLLMManager:
                 "finish_reason": "error",
                 "error": f"Instance {instance_id} not ready",
             }
-            
+
         try:
             result = await asyncio.wait_for(
                 asyncio.get_event_loop().run_in_executor(
@@ -181,7 +187,11 @@ class MultiInstanceLLMManager:
                 "finish_reason": "error",
                 "error": str(e),
             }
-            
+
+    async def aclose(self) -> None:
+        """Async shutdown all instances cleanly."""
+        self._executor.shutdown(wait=False, cancel_futures=True)
+
     def shutdown(self) -> None:
         """Shutdown all instances cleanly."""
-        self._executor.shutdown(wait=True, cancel_futures=True)
+        self._executor.shutdown(wait=False, cancel_futures=True)

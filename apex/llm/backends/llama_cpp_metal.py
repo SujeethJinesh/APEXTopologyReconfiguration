@@ -6,11 +6,11 @@ from typing import Any, Dict, List, Optional
 
 class LlamaCppMetalBackend:
     """llama.cpp backend using Metal acceleration on Mac.
-    
+
     This backend uses GGUF quantized models for efficient inference
     on Apple Silicon with Metal GPU acceleration.
     """
-    
+
     def __init__(
         self,
         instance_id: int,
@@ -21,7 +21,7 @@ class LlamaCppMetalBackend:
         seed: int = 42,
     ):
         """Initialize the backend.
-        
+
         Args:
             instance_id: Instance identifier
             model_path: Path to GGUF model file
@@ -37,17 +37,16 @@ class LlamaCppMetalBackend:
         self.n_threads = n_threads
         self.seed = seed
         self._llm = None
-        
+
     def start(self) -> None:
         """Load the model."""
         try:
             from llama_cpp import Llama
         except ImportError:
             raise ImportError(
-                "llama-cpp-python not installed. "
-                "Install with: pip install llama-cpp-python"
+                "llama-cpp-python not installed. " "Install with: pip install llama-cpp-python"
             )
-            
+
         self._llm = Llama(
             model_path=self.model_path,
             n_ctx=self.n_ctx,
@@ -57,20 +56,20 @@ class LlamaCppMetalBackend:
             vocab_only=False,
             verbose=False,
         )
-        
+
     def ready(self) -> bool:
         """Check if model is loaded."""
         return self._llm is not None
-    
+
     def warmup(self, text: str = "Hello") -> None:
         """Run warmup inference."""
         if self._llm:
             _ = self._llm(text, max_tokens=8)
-            
+
     def stop(self) -> None:
         """Unload the model."""
         self._llm = None
-        
+
     def generate(
         self,
         *,
@@ -83,7 +82,7 @@ class LlamaCppMetalBackend:
         timeout_s: int = 120,
     ) -> Dict[str, Any]:
         """Generate text completion.
-        
+
         Args:
             session_id: Session identifier (for tracking, not used by stateless model)
             prompt: Input prompt
@@ -92,7 +91,7 @@ class LlamaCppMetalBackend:
             top_p: Nucleus sampling threshold
             stop: Optional stop sequences
             timeout_s: Timeout in seconds (handled by manager)
-            
+
         Returns:
             Generation result dictionary
         """
@@ -104,7 +103,7 @@ class LlamaCppMetalBackend:
                 "finish_reason": "error",
                 "error": "Model not loaded",
             }
-            
+
         try:
             t0 = time.time()
             out = self._llm(
@@ -115,15 +114,15 @@ class LlamaCppMetalBackend:
                 stop=stop or [],
                 echo=False,
             )
-            
+
             # Extract results
             text = out["choices"][0]["text"]
             tokens_in = len(out.get("prompt_token_ids", []))
             tokens_out = len(out["choices"][0].get("token_ids", []))
             finish_reason = out["choices"][0].get("finish_reason", "length")
-            
+
             elapsed = time.time() - t0
-            
+
             return {
                 "text": text,
                 "tokens_in": tokens_in,
@@ -132,7 +131,7 @@ class LlamaCppMetalBackend:
                 "elapsed_s": elapsed,
                 "session_id": session_id,
             }
-            
+
         except Exception as e:
             return {
                 "text": "",

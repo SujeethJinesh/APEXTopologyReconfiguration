@@ -9,26 +9,28 @@
 
 ### Integrated hierarchical-optimization + async-first design details to make the spec fully codegen-ready:
 
-1. **Hierarchical control stack:** Controller (top) → A2A Protocol Layer (agent comms & delegation) → MCP servers (tools) → LLM service (vLLM/Ollama) with explicit contracts.
+1. **LLM service overhaul:** Replace Ollama/HTTP client with portable process-based LLM layer (llama.cpp/Metal on Mac; HF/Transformers on H100). Concurrency via process pool (N instances), per-instance warmup, and progress-aware timeouts (base + extension).
 
-2. **Latency-oriented tactics for controller p95 < 10 ms:**
+2. **Hierarchical control stack:** Controller (top) → A2A Protocol Layer (agent comms & delegation) → MCP servers (tools) → LLM service (portable multi-instance) with explicit contracts.
+
+3. **Latency-oriented tactics for controller p95 < 10 ms:**
 
    - Pre-compiled Agent Plan Cache for common SWE-bench patterns (cache hits avoid LLM calls)
    - Async connection pooling saves 5–8 ms per LLM/tool request
    - Parallel preparation via `asyncio.gather()` for topology switch PREPARE and agent warmups
 
-3. **Switching p95 < 100 ms improvements:**
+4. **Switching p95 < 100 ms improvements:**
 
    - Topology health pre-validation + parallel agent prep
    - Agent health caches (10 s TTL)
 
-4. **Budgets:** multi-scope (daily | per-task/episode | per-agent) tracked asynchronously
+5. **Budgets:** multi-scope (daily | per-task/episode | per-agent) tracked asynchronously
 
-5. **TokenizerPool:** cached tokenizers for fast, consistent token estimates
+6. **TokenizerPool:** cached tokenizers for fast, consistent token estimates
 
-6. **State vector update:** repurpose the spare (Idx 23) to `plan_cache_hit_norm` (keep 24-feature contract)
+7. **State vector update:** repurpose the spare (Idx 23) to `plan_cache_hit_norm` (keep 24-feature contract)
 
-7. **New milestones (M13–M15)** with DoD and test harnesses for the above
+8. **New milestones (M13–M15)** with DoD and test harnesses for the above
 
 > All prior corrections remain: mutable Message, approx/streaming percentiles, DRR strictly within active epoch, exact APIs/contracts.
 
@@ -50,7 +52,7 @@
 - **Controller (student policy):** p95 < 10 ms orchestration and topology decisions
 - **A2A Protocol Layer:** agent-to-agent comms & task delegation; normalizes external frameworks; messages go through APEX Router to preserve invariants and budgets
 - **MCP servers:** file/git/test tooling with atomicity and rollback
-- **LLM service:** unified vLLM (prod) / Ollama (dev) with streaming & budget integration
+- **LLM Service:** MultiInstanceLLMManager + backends (llama_cpp_metal | hf_cuda). One process per instance. No HTTP; no connection pooling. Tokens estimated by backend tokenizers; the client enforces token budgets.
 
 **Concurrency:** single-process asyncio (optional uvloop). All components async; critical sections guarded by `asyncio.Lock`; feature extraction uses incremental/approx stats; parallel steps use `asyncio.gather()`.
 
@@ -82,7 +84,7 @@ flowchart TB
     RT[Router + DRR/WRED<br/>Dedup, Retry/TTL]:::router
   end
   subgraph L3["L3: Services"]
-    LLM[LLM Service<br/>Ollama (dev) / vLLM (prod)]:::llm
+    LLM[LLM Service<br/>llama.cpp (Mac) / HF-CUDA (H100)<br/>Process-isolated instances]:::llm
     MCP[MCP Tool Adapters<br/>FS / Git / Test]:::mcp
   end
   subgraph Agents["Role Agents (≤7)"]
@@ -250,7 +252,9 @@ As v14, with **multi-scope budgets:**
 - **Budget violation CP (95%)** ≤ 1%
 - **Controller p95** < 10 ms; **Switch p95** < 100 ms
 - **Stress loss** mean ≤ 0.5%, p95 ≤ 1.0%
-- **APEX LLM overhead request→first byte:** Ollama (dev) < 5 ms p95; vLLM (prod) < 2 ms p95
+- **LLM generation start latency (process-isolated):**
+  • Warm path (post-warmup) median < 300 ms to first token on Mac Metal backend (target)
+  • H100 path measured separately via hf_cuda backend (post-MVP)
 - **Connection pooling benefit:** save ≥ 5 ms per request p50 vs no-pool baseline (measured in M12)
 - **PlanCache effectiveness:** ≥ 20% hit rate on dev set; token savings ≥ 10% on hit episodes
 - **Topology health pre-validation:** reduces switch aborts by ≥ 30% under stress profile

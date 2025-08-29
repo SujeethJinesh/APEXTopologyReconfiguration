@@ -5,26 +5,26 @@ from typing import Any, Dict, List, Optional, Protocol
 
 class LLMBackend(Protocol):
     """Protocol for LLM backend implementations.
-    
+
     All backends must implement this interface for portability.
     """
-    
+
     def start(self) -> None:
         """Initialize the model and load weights."""
         ...
-    
+
     def ready(self) -> bool:
         """Check if the backend is ready for inference."""
         ...
-    
+
     def warmup(self, text: str = "Hello") -> None:
         """Run a warmup inference to prime the model."""
         ...
-    
+
     def stop(self) -> None:
         """Clean shutdown of the backend."""
         ...
-    
+
     def generate(
         self,
         *,
@@ -37,7 +37,7 @@ class LLMBackend(Protocol):
         timeout_s: int = 120,
     ) -> Dict[str, Any]:
         """Generate text completion.
-        
+
         Args:
             session_id: Unique session identifier for context
             prompt: Input prompt text
@@ -46,7 +46,7 @@ class LLMBackend(Protocol):
             top_p: Nucleus sampling threshold
             stop: Optional stop sequences
             timeout_s: Timeout in seconds
-            
+
         Returns:
             Dictionary with:
                 text: Generated text

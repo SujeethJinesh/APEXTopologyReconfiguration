@@ -39,23 +39,23 @@ def _backend_factory(instance_id: int):
 
 class StubBackend:
     """Stub backend for testing without real models."""
-    
+
     def __init__(self, instance_id: int):
         self.instance_id = instance_id
         self._ready = False
-        
+
     def start(self) -> None:
         self._ready = True
-        
+
     def ready(self) -> bool:
         return self._ready
-    
+
     def warmup(self, text: str = "Hello") -> None:
         pass
-    
+
     def stop(self) -> None:
         self._ready = False
-        
+
     def generate(
         self,
         *,
@@ -70,7 +70,7 @@ class StubBackend:
         """Generate mock response."""
         # Simple mock responses based on keywords
         content = "Mock response: "
-        
+
         if "plan" in prompt.lower():
             content += "1. Analyze requirements\n2. Design solution\n3. Implement\n4. Test"
         elif "code" in prompt.lower():
@@ -81,11 +81,11 @@ class StubBackend:
             content += "Error analysis: Check line 42 for undefined variable."
         else:
             content += "Acknowledged. Processing request."
-            
+
         # Mock token counts
         tokens_in = len(prompt) // 4
         tokens_out = len(content) // 4
-        
+
         return {
             "text": content,
             "tokens_in": tokens_in,
@@ -98,7 +98,7 @@ class StubBackend:
 @dataclass
 class LLMConfig:
     """LLM client configuration."""
-    
+
     backend: str = defaults.LLM_BACKEND
     num_instances: int = defaults.LLM_NUM_INSTANCES
     timeout_s: int = defaults.LLM_TIMEOUT_S
@@ -110,7 +110,7 @@ class LLMConfig:
 @dataclass
 class LLMResponse:
     """LLM response with metadata."""
-    
+
     content: str
     tokens_used: int
     elapsed_seconds: float
@@ -121,31 +121,31 @@ class LLMResponse:
 
 class TokenTracker:
     """Track token usage across requests."""
-    
+
     def __init__(self, budget: int = defaults.EPISODE_TOKEN_BUDGET):
         """Initialize token tracker.
-        
+
         Args:
             budget: Total token budget
         """
         self.budget = budget
         self.used = 0
         self.history: list[Dict[str, Any]] = []
-        
+
     def can_request(self, estimated_tokens: int) -> bool:
         """Check if request fits in budget.
-        
+
         Args:
             estimated_tokens: Estimated tokens for request
-            
+
         Returns:
             True if within budget
         """
         return self.used + estimated_tokens <= self.budget
-    
+
     def record_usage(self, tokens: int, metadata: Dict[str, Any] = None):
         """Record token usage.
-        
+
         Args:
             tokens: Tokens used
             metadata: Additional metadata
@@ -159,11 +159,11 @@ class TokenTracker:
                 "metadata": metadata or {},
             }
         )
-        
+
     def remaining(self) -> int:
         """Get remaining budget."""
         return max(0, self.budget - self.used)
-    
+
     def reset(self):
         """Reset tracker."""
         self.used = 0
@@ -172,15 +172,15 @@ class TokenTracker:
 
 class PortableLLMClient:
     """Portable LLM client with multi-instance backend support.
-    
+
     Maintains the same interface as the old LLMClient for compatibility.
     """
-    
+
     def __init__(
         self, config: Optional[LLMConfig] = None, token_tracker: Optional[TokenTracker] = None
     ):
         """Initialize LLM client.
-        
+
         Args:
             config: LLM configuration
             token_tracker: Optional token tracker
@@ -192,12 +192,12 @@ class PortableLLMClient:
             num_instances=self.config.num_instances,
         )
         self._started = False
-        
+
         # Check if LLM is allowed (for CI safety)
         if not os.environ.get("APEX_ALLOW_LLM") and not self.config.mock_mode:
             self.config.mock_mode = True
             logger.info("LLM disabled (APEX_ALLOW_LLM not set), using mock mode")
-            
+
     async def ensure_started(self):
         """Ensure the manager is started and ready."""
         if not self._started:
@@ -205,7 +205,7 @@ class PortableLLMClient:
             if not self._mgr.ready():
                 raise RuntimeError("LLM manager failed to start all instances")
             self._started = True
-            
+
     async def complete(
         self,
         prompt: str,
@@ -215,14 +215,14 @@ class PortableLLMClient:
         session_id: Optional[str] = None,
     ) -> LLMResponse:
         """Get completion from LLM (compatible with old interface).
-        
+
         Args:
             prompt: User prompt
             system: Optional system prompt
             max_tokens: Override max tokens
             agent_id: Agent identifier for instance mapping
             session_id: Session identifier for context
-            
+
         Returns:
             LLM response
         """
@@ -231,13 +231,13 @@ class PortableLLMClient:
             full_prompt = f"System: {system}\n\nUser: {prompt}"
         else:
             full_prompt = prompt
-            
+
         # Estimate tokens with conservative factor and guardrails
         prompt_tokens_est = max(0, len(full_prompt) // 4)  # rough: 1 token per 4 chars
         # Clamp max_tokens to reasonable range
         max_out_tokens = max(1, min(max_tokens or self.config.max_tokens, 4096))
         estimated_tokens = int((prompt_tokens_est + max_out_tokens) * 1.1)  # +10% buffer
-        
+
         # Budget check (hard deny)
         if not self.tracker.can_request(estimated_tokens):
             logger.info(
@@ -249,7 +249,7 @@ class PortableLLMClient:
                     "budget": self.tracker.budget,
                 },
             )
-            
+
             return LLMResponse(
                 content="",
                 tokens_used=0,
@@ -258,19 +258,19 @@ class PortableLLMClient:
                 error="budget_denied",
                 status="budget_denied",
             )
-            
+
         # Ensure manager is started
         await self.ensure_started()
-        
+
         # Choose instance based on agent_id (deterministic mapping)
         if agent_id:
             instance_id = abs(hash(agent_id)) % self.config.num_instances
         else:
             instance_id = 0  # Default to first instance
-            
+
         # Generate with selected instance
         start_time = time.time()
-        
+
         try:
             result = await self._mgr.generate(
                 instance_id,
@@ -280,13 +280,13 @@ class PortableLLMClient:
                 temperature=self.config.temperature,
                 timeout_s=self.config.timeout_s,
             )
-            
+
             # Extract results
             content = result.get("text", "")
             tokens_in = result.get("tokens_in", 0)
             tokens_out = result.get("tokens_out", 0)
             total_tokens = tokens_in + tokens_out
-            
+
             # Record usage
             self.tracker.record_usage(
                 total_tokens,
@@ -296,7 +296,7 @@ class PortableLLMClient:
                     "session_id": session_id,
                 },
             )
-            
+
             return LLMResponse(
                 content=content,
                 tokens_used=total_tokens,
@@ -304,7 +304,7 @@ class PortableLLMClient:
                 model=self.config.backend,
                 error=result.get("error"),
             )
-            
+
         except Exception as e:
             logger.error(f"LLM generation failed: {e}")
             return LLMResponse(
@@ -314,32 +314,32 @@ class PortableLLMClient:
                 model=self.config.backend,
                 error=str(e),
             )
-            
+
     async def batch_complete(
         self, prompts: list[str], system: Optional[str] = None
     ) -> list[LLMResponse]:
         """Batch completion for multiple prompts.
-        
+
         Args:
             prompts: List of prompts
             system: Shared system prompt
-            
+
         Returns:
             List of responses
         """
         # Process concurrently with semaphore to limit parallelism
         sem = asyncio.Semaphore(3)  # Max 3 concurrent requests
-        
+
         async def complete_with_sem(prompt):
             async with sem:
                 return await self.complete(prompt, system)
-                
+
         tasks = [complete_with_sem(p) for p in prompts]
         return await asyncio.gather(*tasks)
-        
+
     def get_stats(self) -> Dict[str, Any]:
         """Get client statistics.
-        
+
         Returns:
             Statistics dictionary
         """
@@ -352,7 +352,7 @@ class PortableLLMClient:
             "budget": self.tracker.budget,
             "requests": len(self.tracker.history),
         }
-        
+
     def shutdown(self):
         """Shutdown the manager and all instances."""
         if self._started:
