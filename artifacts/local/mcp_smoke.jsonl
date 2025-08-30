@@ -1,0 +1,1 @@
+{"__meta__": {"llm_backend": "llama_cpp_metal", "instances": 3, "episode_id": "smoke_001"}, "success": false, "tokens_used": 25, "budget": 10000, "progress_events": 3, "mcp_calls": {"fs_write": 1, "fs_read": 1, "test_run": 1}, "worker_pids": []}

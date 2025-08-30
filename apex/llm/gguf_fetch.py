@@ -25,6 +25,14 @@ def ensure_gguf() -> str:
         print(f"[APEX] Using existing GGUF model: {target_p}")
         return str(target_p)
 
+    # Network gate for CI safety - require explicit permission
+    if not os.environ.get("APEX_ALLOW_NETWORK"):
+        raise RuntimeError(
+            "Network access required for GGUF download but APEX_ALLOW_NETWORK not set.\n"
+            "To download the model, set: export APEX_ALLOW_NETWORK=1\n"
+            f"Model will be saved to: {target_p}"
+        )
+
     # Download from HuggingFace
     print(f"[APEX] Downloading {repo}/{fname} → {target}")
     print("[APEX] This may take a few minutes for the first download...")

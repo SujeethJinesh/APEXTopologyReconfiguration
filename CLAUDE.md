@@ -68,14 +68,19 @@ After EVERY task completion:
 2. Include permalinks to all modified files
 3. Update test counts and results
 4. **RUN LINTING** - Must pass before committing: `make lint` or `ruff check` + `black`
-5. **COMMIT AND PUSH CHANGES** with clear message describing what was fixed
-6. Use `git add -A`, `git commit -m "descriptive message"`, `git push origin branch-name`
-7. **UPDATE THE PR** with:
+5. **UPDATE PERMALINKS.MD** - After every commit, update `docs/permalinks.md` with:
+   - Latest commit SHA from `git rev-parse HEAD`
+   - Permalinks to any new files added
+   - Updated permalinks for all modified files
+   - Remove permalinks for any deleted files
+6. **COMMIT AND PUSH CHANGES** with clear message describing what was fixed
+7. Use `git add -A`, `git commit -m "descriptive message"`, `git push origin branch-name`
+8. **UPDATE THE PR** with:
    - Summary of changes
    - Permalinks to latest commit (use HEAD SHA)
    - Test results
    - Evidence of lint passing
-8. Always commit after completing each milestone/feature/fix
+9. Always commit after completing each milestone/feature/fix
 
 ### 4. Response Format
 ALWAYS include permalinks to relevant files in responses.
@@ -106,6 +111,7 @@ When reviewer requests changes:
 7. **Version Control:** Commit and push after EVERY completed task/milestone
 8. **Permalinks:** Always include GitHub permalinks to relevant files in responses
 9. **PR Updates:** Update PR description with latest changes and permalinks
+10. **Permalinks.md Maintenance:** Update `docs/permalinks.md` after EVERY commit with latest SHA and file changes
 
 ## Common Review Issues & Solutions
 
@@ -133,6 +139,7 @@ When reviewer requests changes:
 
 ```
 docs/
+  permalinks.md           # Complete repository permalinks (UPDATE AFTER EVERY COMMIT)
   M{N}/
     evidence_pack.md      # Milestone evidence
     CHANGE_SUMMARY.md     # All changes with permalinks  
@@ -140,6 +147,34 @@ docs/
     final_response.md     # Additional evidence
     artifacts/            # Test outputs, logs
 ```
+
+## Permalinks.md Maintenance
+
+**CRITICAL:** The `docs/permalinks.md` file must be updated after EVERY commit to maintain accurate references.
+
+### When to Update
+- After ANY commit (including small fixes)
+- When adding new files to the repository
+- When deleting files from the repository
+- When renaming or moving files
+- After merging branches or PRs
+
+### How to Update
+1. Get the latest commit SHA: `git rev-parse HEAD`
+2. Update the commit SHA in the permalinks.md header
+3. Add permalinks for any new files using format:
+   ```
+   https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/[SHA]/path/to/file.ext
+   ```
+4. Update permalinks for all modified files with new SHA
+5. Remove entries for any deleted files
+6. Verify all links are accessible before committing
+
+### Structure to Maintain
+- Keep files organized by directory structure
+- Mark critical files with ⭐ for easy identification
+- Include line-specific permalinks for important functions
+- Maintain statistics section with file counts
 
 ## Response Best Practices
 
