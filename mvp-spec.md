@@ -56,7 +56,12 @@ Does an epoch-gated, dynamic topology controller improve Success@Budget on SWE-b
 - **Coordinator:** Holds switch_lock, enforces dwell_min_steps and cooldown, executes switch on controller decisions
 - **Controller (MVP policy):** BanditSwitch v1 (linear contextual bandit) choosing among {stay, star, chain, flat}; epsilon-greedy; no QR-DQN
 - **MCP (tools):** FS (read/write/patch/search) and Test (discover/run) adapters only. Git adapter deferred (we can rely on SWE-bench harness repo setup)
-- **LLM Service:** Ollama (Metal) for dev. No pooling; single async client
+- **LLM Service (MVP):** Portable, process-isolated multi-instance client (N≤5 on Mac). Defaults: llama.cpp (Metal) on Mac (GGUF path via APEX_GGUF_MODEL_PATH), HF+4-bit on H100. No HTTP pooling. Per-call timeouts and hard token budget deny. One instance per agent role (stable hash mapping) to avoid context mixing.
+  • Mac (dev): llama.cpp via llama-cpp-python (Metal enabled) loading GGUF (e.g., Llama 3.1 8B Instruct Q4)
+  • H100 (prod path): HuggingFace Transformers (4-bit or fp16 via bitsandbytes/accelerate), one process per GPU
+  • Concurrency: N independent processes → no shared context between agents
+  • Interface: The existing LLMClient.generate() is preserved; the client delegates to a MultiInstanceLLMManager
+  • Pooling: No HTTP pooling (not applicable). Concurrency comes from processes, not HTTP sessions
 - **A2A (internal):** In-process message envelopes (no external bridge). External A2A is deferred
 
 ### 1.2 Concurrency Model (Simple & Explicit)
@@ -119,6 +124,7 @@ MAX_ATTEMPTS         = 5
 - **Allow rule:** approve if `used + estimate <= budget`
 - **Estimate:** `len(prompt_tokens) + max_tokens` (Conservative by adding a fixed +10% headroom factor is allowed but optional)
 - **Deny path:** If a call would exceed budget → deny, log `budget_denied`, and the episode proceeds (the agent must try a cheaper step or terminate)
+- **Token counting:** Token counts are computed per backend using the model's tokenizer. The client returns {text, tokens_in, tokens_out, status} so budget enforcement remains unchanged.
 
 > Time budgets, multi-scope budgets, dual variables, and BudgetGuard reservations are deferred to Post-MVP.
 
@@ -194,7 +200,7 @@ We use **8 features only:**
   - `run(selected=None, timeout_s=...)` returning structured results (pass/fail counts)
 
 - **LLM:** 
-  - Ollama client `generate(prompt, max_tokens)` with single `aiohttp.ClientSession`
+  - LLM client `generate(prompt, max_tokens)` via MultiInstanceLLMManager (process-isolated)
   - No pooling
   - If LLM returns errors or times out, the agent falls back to next scripted action
 
@@ -243,7 +249,7 @@ We use **8 features only:**
 #### F1.3 Coordinator
 - **T1.3** switch_lock, dwell/cooldown enforcement, TOPOLOGY_CHANGED event
 
-### A2 — MCP (FS/Test) & LLM (Ollama)
+### A2 — MCP (FS/Test) & LLM (Portable)
 
 #### F2.1 FS Adapter
 - **T2.1** read/write/patch/search (whitelist)
@@ -350,6 +356,23 @@ class LLM(Protocol):
 
 ## 11) Minimal Runbooks
 
+### Setup
+
+```bash
+# Mac dev: llama.cpp (Metal) + GGUF
+pip install "llama-cpp-python==0.2.90"
+# Put your model at $APEX_GGUF_MODEL_PATH (e.g., Llama-3.1-8B-Instruct-Q4_K_M.gguf)
+export APEX_LLM_BACKEND=llama_cpp_metal
+export APEX_GGUF_MODEL_PATH=/path/to/Llama-3.1-8B-Instruct-Q4_K_M.gguf
+export APEX_NUM_LLM_INSTANCES=5
+
+# H100 prod path (optional for later)
+pip install "transformers>=4.43" "accelerate>=0.33" "bitsandbytes>=0.43" sentencepiece
+export APEX_LLM_BACKEND=hf_cuda
+export APEX_HF_MODEL_ID=meta-llama/Meta-Llama-3.1-8B-Instruct
+# (requires accepting license + setting HUGGINGFACE_HUB_TOKEN)
+```
+
 ### SWE-bench Lite — First 100 Episodes
 
 ```bash
@@ -421,7 +444,7 @@ If dynamic switching shows lift over the best static topology in N=100 episodes,
 ## 15) Immediate TODO (Start Coding)
 
 1. **A0–A1:** runtime (messages/queues/switch/coordinator) + unit tests
-2. **A2:** MCP FS/Test + simple Ollama client
+2. **A2:** MCP FS/Test + portable LLM client (process-isolated)
 3. **A3:** scripted agents + topology routing
 4. **A4:** BanditSwitch v1 + reward logging
 5. **A5:** run first N=100 benchmark and compute lift

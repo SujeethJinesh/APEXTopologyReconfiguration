@@ -1,31 +1,113 @@
-"""LLM client with Ollama integration and token tracking.
-
-Supports both Ollama for local inference and mock mode for testing.
-"""
+"""Portable LLM client with multi-instance backend support."""
 
 import asyncio
-import json
+import hashlib
 import logging
 import os
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
-import aiohttp
+from apex.config import defaults
+from apex.llm.backends.hf_cuda import HFCudaBitsBackend
+from apex.llm.backends.llama_cpp_metal import LlamaCppMetalBackend
+from apex.llm.manager import MultiInstanceLLMManager
 
 logger = logging.getLogger(__name__)
+
+
+def _backend_factory(instance_id: int):
+    """Factory function to create backend instances."""
+    if defaults.LLM_STUB_MODE:
+        # Return stub backend for testing
+        return StubBackend(instance_id=instance_id)
+    elif defaults.LLM_BACKEND == "llama_cpp_metal":
+        # Pass None for model_path if not set to trigger auto-download
+        model_path = defaults.GGUF_MODEL_PATH if defaults.GGUF_MODEL_PATH else None
+        return LlamaCppMetalBackend(
+            instance_id=instance_id,
+            model_path=model_path,
+            n_ctx=defaults.LLM_CTX_TOKENS,
+            n_gpu_layers=-1,  # Offload all to Metal
+        )
+    elif defaults.LLM_BACKEND == "hf_cuda":
+        return HFCudaBitsBackend(
+            instance_id=instance_id,
+            model_id=defaults.LLM_MODEL_ID,
+            load_in_4bit=True,
+        )
+    else:
+        raise RuntimeError(f"Unknown LLM_BACKEND={defaults.LLM_BACKEND}")
+
+
+class StubBackend:
+    """Stub backend for testing without real models."""
+
+    def __init__(self, instance_id: int):
+        self.instance_id = instance_id
+        self._ready = False
+
+    def start(self) -> None:
+        self._ready = True
+
+    def ready(self) -> bool:
+        return self._ready
+
+    def warmup(self, text: str = "Hello") -> None:
+        pass
+
+    def stop(self) -> None:
+        self._ready = False
+
+    def generate(
+        self,
+        *,
+        session_id: str,
+        prompt: str,
+        max_new_tokens: int,
+        temperature: float = 0.7,
+        top_p: float = 0.95,
+        stop: Optional[list] = None,
+        timeout_s: int = 120,
+    ) -> Dict[str, Any]:
+        """Generate mock response."""
+        # Simple mock responses based on keywords
+        content = "Mock response: "
+
+        if "plan" in prompt.lower():
+            content += "1. Analyze requirements\n2. Design solution\n3. Implement\n4. Test"
+        elif "code" in prompt.lower():
+            content += "```python\ndef solution():\n    return 'mock implementation'\n```"
+        elif "test" in prompt.lower():
+            content += "All tests passed successfully."
+        elif "error" in prompt.lower():
+            content += "Error analysis: Check line 42 for undefined variable."
+        else:
+            content += "Acknowledged. Processing request."
+
+        # Mock token counts
+        tokens_in = len(prompt) // 4
+        tokens_out = len(content) // 4
+
+        return {
+            "text": content,
+            "tokens_in": tokens_in,
+            "tokens_out": tokens_out,
+            "finish_reason": "stop",
+            "elapsed_s": 0.01,
+        }
 
 
 @dataclass
 class LLMConfig:
     """LLM client configuration."""
 
-    model: str = "qwen2.5-coder:3b"
-    base_url: str = "http://localhost:11434"
-    temperature: float = 0.7
+    backend: str = defaults.LLM_BACKEND
+    num_instances: int = defaults.LLM_NUM_INSTANCES
+    timeout_s: int = defaults.LLM_TIMEOUT_S
     max_tokens: int = 2048
-    timeout_seconds: int = 30
-    mock_mode: bool = False  # For testing without LLM
+    temperature: float = 0.7
+    mock_mode: bool = defaults.LLM_STUB_MODE
 
 
 @dataclass
@@ -43,7 +125,7 @@ class LLMResponse:
 class TokenTracker:
     """Track token usage across requests."""
 
-    def __init__(self, budget: int = 10_000):
+    def __init__(self, budget: int = defaults.EPISODE_TOKEN_BUDGET):
         """Initialize token tracker.
 
         Args:
@@ -51,7 +133,7 @@ class TokenTracker:
         """
         self.budget = budget
         self.used = 0
-        self.history: List[Dict[str, Any]] = []
+        self.history: list[Dict[str, Any]] = []
 
     def can_request(self, estimated_tokens: int) -> bool:
         """Check if request fits in budget.
@@ -91,181 +173,175 @@ class TokenTracker:
         self.history.clear()
 
 
-class LLMClient:
-    """Async LLM client with Ollama support.
+class PortableLLMClient:
+    """Portable LLM client with multi-instance backend support.
 
-    Falls back to mock mode if APEX_ALLOW_LLM is not set (for CI).
+    Maintains the same interface as the old LLMClient for compatibility.
     """
 
-    def __init__(self, config: LLMConfig, token_tracker: Optional[TokenTracker] = None):
+    def __init__(
+        self, config: Optional[LLMConfig] = None, token_tracker: Optional[TokenTracker] = None
+    ):
         """Initialize LLM client.
 
         Args:
             config: LLM configuration
             token_tracker: Optional token tracker
         """
-        self.config = config
+        self.config = config or LLMConfig()
         self.tracker = token_tracker or TokenTracker()
+        self._mgr = MultiInstanceLLMManager(
+            backend_factory=_backend_factory,
+            num_instances=self.config.num_instances,
+        )
+        self._started = False
 
         # Check if LLM is allowed (for CI safety)
-        if not os.environ.get("APEX_ALLOW_LLM") and not config.mock_mode:
+        if not os.environ.get("APEX_ALLOW_LLM") and not self.config.mock_mode:
             self.config.mock_mode = True
+            logger.info("LLM disabled (APEX_ALLOW_LLM not set), using mock mode")
+
+        # Log configuration on startup
+        model_info = (
+            defaults.GGUF_MODEL_PATH
+            if self.config.backend == "llama_cpp_metal"
+            else defaults.LLM_MODEL_ID
+        )
+        logger.info(
+            f"LLM Client initialized: backend={self.config.backend}, "
+            f"model={model_info}, instances={self.config.num_instances}, "
+            f"mock_mode={self.config.mock_mode}"
+        )
+
+    async def ensure_started(self):
+        """Ensure the manager is started and ready."""
+        if not self._started:
+            await self._mgr.start()
+            if not self._mgr.ready():
+                raise RuntimeError("LLM manager failed to start all instances")
+            self._started = True
 
     async def complete(
-        self, prompt: str, system: Optional[str] = None, max_tokens: Optional[int] = None
+        self,
+        prompt: str,
+        system: Optional[str] = None,
+        max_tokens: Optional[int] = None,
+        agent_id: Optional[str] = None,
+        session_id: Optional[str] = None,
     ) -> LLMResponse:
-        """Get completion from LLM.
+        """Get completion from LLM (compatible with old interface).
 
         Args:
             prompt: User prompt
             system: Optional system prompt
             max_tokens: Override max tokens
+            agent_id: Agent identifier for instance mapping
+            session_id: Session identifier for context
 
         Returns:
             LLM response
         """
-        if self.config.mock_mode:
-            return await self._mock_complete(prompt, system)
+        # Combine system and user prompts
+        if system:
+            full_prompt = f"System: {system}\n\nUser: {prompt}"
+        else:
+            full_prompt = prompt
 
-        # Estimate tokens with conservative factor and guardrails
-        prompt_tokens_est = max(0, len(prompt) // 4)  # rough: 1 token per 4 chars
-        # Clamp max_tokens to reasonable range
+        # Clamp max_tokens to reasonable range first
         max_out_tokens = max(1, min(max_tokens or self.config.max_tokens, 4096))
-        estimated_tokens = int((prompt_tokens_est + max_out_tokens) * 1.1)  # +10% buffer
 
+        # Try to get accurate token estimate from backend if available
+        # This is a heuristic since we can't directly access worker backends from here
+        # TODO: Consider adding a token estimation endpoint to the manager
+        prompt_tokens_est = max(0, len(full_prompt) // 4)  # rough: 1 token per 4 chars
+        base_estimate = prompt_tokens_est + max_out_tokens
+
+        # Add 10% conservative buffer for safety
+        estimated_tokens = int(base_estimate * 1.1)  # +10% buffer
+
+        # Budget check (hard deny)
         if not self.tracker.can_request(estimated_tokens):
-            # Log budget denial - no model call
             logger.info(
                 "budget_denied",
                 extra={
-                    "episode_id": getattr(self, "episode_id", "unknown"),
+                    "episode_id": session_id or "unknown",
                     "used": self.tracker.used,
                     "estimate": estimated_tokens,
                     "budget": self.tracker.budget,
                 },
             )
 
-            # Return structured result - NO network I/O
             return LLMResponse(
                 content="",
                 tokens_used=0,
                 elapsed_seconds=0,
-                model=self.config.model,
+                model=self.config.backend,
                 error="budget_denied",
-                status="budget_denied",  # Explicit status field
+                status="budget_denied",
             )
 
+        # Ensure manager is started
+        await self.ensure_started()
+
+        # Choose instance based on agent_id (deterministic mapping using SHA-1)
+        if agent_id:
+            # Use SHA-1 for stable hashing across processes
+            h = hashlib.sha1(agent_id.encode("utf-8")).digest()
+            val = int.from_bytes(h[:8], "big", signed=False)
+            instance_id = val % self.config.num_instances
+        else:
+            instance_id = 0  # Default to first instance
+
+        # Generate with selected instance
         start_time = time.time()
 
         try:
-            # Prepare request
-            messages = []
-            if system:
-                messages.append({"role": "system", "content": system})
-            messages.append({"role": "user", "content": prompt})
-
-            # Call Ollama API
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{self.config.base_url}/api/chat",
-                    json={
-                        "model": self.config.model,
-                        "messages": messages,
-                        "temperature": self.config.temperature,
-                        "max_tokens": max_tokens or self.config.max_tokens,
-                        "stream": False,
-                    },
-                    timeout=aiohttp.ClientTimeout(total=self.config.timeout_seconds),
-                ) as response:
-                    if response.status != 200:
-                        error_text = await response.text()
-                        return LLMResponse(
-                            content="",
-                            tokens_used=0,
-                            elapsed_seconds=time.time() - start_time,
-                            model=self.config.model,
-                            error=f"API error {response.status}: {error_text}",
-                        )
-
-                    data = await response.json()
-
-                    # Extract response
-                    content = data.get("message", {}).get("content", "")
-
-                    # Count tokens (Ollama provides this)
-                    tokens_used = data.get("eval_count", len(content) // 4)
-
-                    # Record usage
-                    self.tracker.record_usage(
-                        tokens_used, {"model": self.config.model, "prompt_length": len(prompt)}
-                    )
-
-                    return LLMResponse(
-                        content=content,
-                        tokens_used=tokens_used,
-                        elapsed_seconds=time.time() - start_time,
-                        model=self.config.model,
-                    )
-
-        except asyncio.TimeoutError:
-            return LLMResponse(
-                content="",
-                tokens_used=0,
-                elapsed_seconds=self.config.timeout_seconds,
-                model=self.config.model,
-                error="Request timed out",
+            result = await self._mgr.generate(
+                instance_id,
+                session_id=session_id or f"default_{time.time()}",
+                prompt=full_prompt,
+                max_new_tokens=max_out_tokens,
+                temperature=self.config.temperature,
+                timeout_s=self.config.timeout_s,
             )
+
+            # Extract results
+            content = result.get("text", "")
+            tokens_in = result.get("tokens_in", 0)
+            tokens_out = result.get("tokens_out", 0)
+            total_tokens = tokens_in + tokens_out
+
+            # Record usage
+            self.tracker.record_usage(
+                total_tokens,
+                {
+                    "model": self.config.backend,
+                    "agent_id": agent_id,
+                    "session_id": session_id,
+                },
+            )
+
+            return LLMResponse(
+                content=content,
+                tokens_used=total_tokens,
+                elapsed_seconds=time.time() - start_time,
+                model=self.config.backend,
+                error=result.get("error"),
+            )
+
         except Exception as e:
+            logger.error(f"LLM generation failed: {e}")
             return LLMResponse(
                 content="",
                 tokens_used=0,
                 elapsed_seconds=time.time() - start_time,
-                model=self.config.model,
+                model=self.config.backend,
                 error=str(e),
             )
 
-    async def _mock_complete(self, prompt: str, system: Optional[str]) -> LLMResponse:
-        """Mock completion for testing.
-
-        Args:
-            prompt: User prompt
-            system: System prompt
-
-        Returns:
-            Mock response
-        """
-        # Simple mock responses based on keywords
-        content = "Mock response: "
-
-        if "plan" in prompt.lower():
-            content += "1. Analyze requirements\n2. Design solution\n3. Implement\n4. Test"
-        elif "code" in prompt.lower():
-            content += "```python\ndef solution():\n    return 'mock implementation'\n```"
-        elif "test" in prompt.lower():
-            content += "All tests passed successfully."
-        elif "error" in prompt.lower():
-            content += "Error analysis: Check line 42 for undefined variable."
-        else:
-            content += "Acknowledged. Processing request."
-
-        # Better token estimation for testing
-        prompt_tokens = len(prompt) // 4
-        response_tokens = len(content) // 4
-        total_tokens = prompt_tokens + response_tokens
-
-        # Record usage with both input and output
-        self.tracker.record_usage(total_tokens, {"mock": True, "prompt_tokens": prompt_tokens})
-
-        return LLMResponse(
-            content=content,
-            tokens_used=total_tokens,  # Total tokens used
-            elapsed_seconds=0.01,
-            model="mock",
-        )
-
     async def batch_complete(
-        self, prompts: List[str], system: Optional[str] = None
-    ) -> List[LLMResponse]:
+        self, prompts: list[str], system: Optional[str] = None
+    ) -> list[LLMResponse]:
         """Batch completion for multiple prompts.
 
         Args:
@@ -292,63 +368,22 @@ class LLMClient:
             Statistics dictionary
         """
         return {
-            "model": self.config.model,
+            "backend": self.config.backend,
             "mock_mode": self.config.mock_mode,
+            "num_instances": self.config.num_instances,
             "tokens_used": self.tracker.used,
             "tokens_remaining": self.tracker.remaining(),
             "budget": self.tracker.budget,
             "requests": len(self.tracker.history),
         }
 
+    def shutdown(self):
+        """Shutdown the manager and all instances."""
+        if self._started:
+            self._mgr.shutdown()
+            self._started = False
 
-class StructuredLLMClient(LLMClient):
-    """LLM client with structured output parsing."""
 
-    async def complete_json(
-        self, prompt: str, schema: Dict[str, Any], system: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """Get JSON response matching schema.
-
-        Args:
-            prompt: User prompt
-            schema: Expected JSON schema
-            system: System prompt
-
-        Returns:
-            Parsed JSON response
-        """
-        # Add JSON instruction to prompt
-        schema_str = json.dumps(schema, indent=2)
-        json_prompt = f"{prompt}\n\nRespond with valid JSON matching this schema:\n{schema_str}"
-
-        response = await self.complete(json_prompt, system)
-
-        if response.error:
-            return {"error": response.error}
-
-        try:
-            # Extract JSON from response
-            content = response.content
-
-            # Find JSON block
-            if "```json" in content:
-                start = content.index("```json") + 7
-                end = content.index("```", start)
-                content = content[start:end]
-            elif "{" in content:
-                start = content.index("{")
-                # Find matching closing brace
-                depth = 0
-                for i, char in enumerate(content[start:], start):
-                    if char == "{":
-                        depth += 1
-                    elif char == "}":
-                        depth -= 1
-                        if depth == 0:
-                            content = content[start : i + 1]
-                            break
-
-            return json.loads(content)
-
-        except (json.JSONDecodeError, ValueError) as e:
-            return {"error": f"Failed to parse JSON: {e}", "raw": response.content}
+# Keep old class names for compatibility
+LLMClient = PortableLLMClient
+StructuredLLMClient = PortableLLMClient  # Can be extended later if needed

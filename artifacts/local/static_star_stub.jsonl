@@ -1,0 +1,1 @@
+{"task_id": "stub_plan_1", "policy": "static_star", "success": true, "tokens_used": 2534, "over_budget": false, "budget": 10000, "seed": 42, "epoch_switches": 0, "notes": "mode=stub,topology_pref=star"}

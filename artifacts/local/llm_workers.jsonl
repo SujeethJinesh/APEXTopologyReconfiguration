@@ -1,0 +1,3 @@
+{"pid": 9327, "instance_id": 0, "backend": "LlamaCppMetalBackend", "timestamp": 1756524211.116429}
+{"pid": 9328, "instance_id": 1, "backend": "LlamaCppMetalBackend", "timestamp": 1756524228.806922}
+{"pid": 9329, "instance_id": 2, "backend": "LlamaCppMetalBackend", "timestamp": 1756524228.8083599}
