@@ -21,13 +21,24 @@ _WORKER_ID: Optional[int] = None
 
 def _init_worker(backend_factory: Callable, worker_id: int):
     """Initialize worker process with backend."""
+    import os
+    import json
     global _BACKEND, _WORKER_ID
     _WORKER_ID = worker_id
     _BACKEND = backend_factory(instance_id=worker_id)
     _BACKEND.start()
     # Do warmup immediately on init
     _BACKEND.warmup("Warmup test")
+    
+    # Log worker readiness with PID and backend info
+    worker_info = {
+        "pid": os.getpid(),
+        "instance_id": worker_id,
+        "backend": _BACKEND.__class__.__name__,
+        "timestamp": time.time()
+    }
     print(f"Worker {worker_id} initialized and warmed up")
+    print(f"[WORKER_READY] {json.dumps(worker_info)}")
 
 
 def _warmup_backend() -> bool:
