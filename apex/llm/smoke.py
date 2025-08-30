@@ -23,13 +23,15 @@ async def smoke_test():
     print(f"Model path: {defaults.GGUF_MODEL_PATH or defaults.LLM_MODEL_ID}")
     print()
 
-    # Check if we have a model path for non-stub mode
+    # Note: If GGUF_MODEL_PATH is not set, the backend will auto-download
     if not defaults.LLM_STUB_MODE and defaults.LLM_BACKEND == "llama_cpp_metal":
-        if not defaults.GGUF_MODEL_PATH or not os.path.exists(defaults.GGUF_MODEL_PATH):
-            print("ERROR: APEX_GGUF_MODEL_PATH not set or file doesn't exist")
-            print("Set it to your GGUF model path, e.g.:")
-            print("export APEX_GGUF_MODEL_PATH=/path/to/model.gguf")
-            return 1
+        if defaults.GGUF_MODEL_PATH and not os.path.exists(defaults.GGUF_MODEL_PATH):
+            print("WARNING: APEX_GGUF_MODEL_PATH set but file doesn't exist")
+            print(f"Path: {defaults.GGUF_MODEL_PATH}")
+            print("Will attempt auto-download...")
+        elif not defaults.GGUF_MODEL_PATH:
+            print("APEX_GGUF_MODEL_PATH not set, will auto-download GGUF model...")
+            print("This may take a few minutes for the first download...")
 
     # Create client
     client = PortableLLMClient()

@@ -169,8 +169,13 @@ class LlamaCppMetalBackend:
 
             # Extract results
             text = out["choices"][0]["text"]
-            tokens_in = len(out.get("prompt_token_ids", []))
-            tokens_out = len(out["choices"][0].get("token_ids", []))
+            # Check different possible field names for token counts
+            tokens_in = out.get("usage", {}).get("prompt_tokens", 0)
+            tokens_out = out.get("usage", {}).get("completion_tokens", 0)
+            if tokens_in == 0:  # Fallback to old field names
+                tokens_in = len(out.get("prompt_token_ids", []))
+            if tokens_out == 0:
+                tokens_out = len(out["choices"][0].get("token_ids", []))
             finish_reason = out["choices"][0].get("finish_reason", "length")
 
             elapsed = time.time() - t0

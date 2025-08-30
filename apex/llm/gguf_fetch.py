@@ -46,7 +46,8 @@ def ensure_gguf() -> str:
         if dl_p.resolve() != target_p.resolve():
             if target_p.exists():
                 target_p.unlink()  # Remove incomplete file if exists
-            dl_p.rename(target_p)
+            if dl_p.exists():  # Ensure source exists before rename
+                dl_p.rename(target_p)
 
         print(f"[APEX] Download complete: {target_p} ({target_p.stat().st_size / 1e9:.2f} GB)")
         return str(target_p)
