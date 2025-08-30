@@ -22,9 +22,11 @@ def _backend_factory(instance_id: int):
         # Return stub backend for testing
         return StubBackend(instance_id=instance_id)
     elif defaults.LLM_BACKEND == "llama_cpp_metal":
+        # Pass None for model_path if not set to trigger auto-download
+        model_path = defaults.GGUF_MODEL_PATH if defaults.GGUF_MODEL_PATH else None
         return LlamaCppMetalBackend(
             instance_id=instance_id,
-            model_path=defaults.GGUF_MODEL_PATH,
+            model_path=model_path,
             n_ctx=defaults.LLM_CTX_TOKENS,
             n_gpu_layers=-1,  # Offload all to Metal
         )

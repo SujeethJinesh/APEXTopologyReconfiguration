@@ -5,6 +5,8 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from apex.llm.gguf_fetch import ensure_gguf
+
 
 class LlamaCppMetalBackend:
     """llama.cpp backend using Metal acceleration on Mac.
@@ -16,7 +18,7 @@ class LlamaCppMetalBackend:
     def __init__(
         self,
         instance_id: int,
-        model_path: str,
+        model_path: Optional[str] = None,
         n_ctx: int = 4096,
         n_gpu_layers: int = -1,
         n_threads: int = 0,
@@ -27,7 +29,7 @@ class LlamaCppMetalBackend:
 
         Args:
             instance_id: Instance identifier
-            model_path: Path to GGUF model file
+            model_path: Path to GGUF model file (auto-download if None)
             n_ctx: Context window size
             n_gpu_layers: Number of layers to offload to GPU (-1 for all)
             n_threads: Number of CPU threads (0 for auto)
@@ -35,6 +37,9 @@ class LlamaCppMetalBackend:
             cache_dir: Optional cache directory for this instance
         """
         self.instance_id = instance_id
+        # Auto-download GGUF if not provided
+        if model_path is None:
+            model_path = ensure_gguf()
         self.model_path = model_path
         self.n_ctx = n_ctx
         self.n_gpu_layers = n_gpu_layers
