@@ -411,24 +411,65 @@ class EvalHarness:
                 oracle=self.oracle_smoke,  # Apply gold patch in oracle mode
             )
 
-            # Run tests - prioritize FAIL_TO_PASS tests
-            test_result = RepoManager.run_tests(
-                repo_path=repo_path,
-                test_select=record.fail_to_pass if record.fail_to_pass else None,
-                timeout_s=180,
+            # If in oracle mode, just run tests (gold patch already applied)
+            if self.oracle_smoke:
+                test_result = RepoManager.run_tests(
+                    repo_path=repo_path,
+                    test_select=record.fail_to_pass if record.fail_to_pass else None,
+                    timeout_s=180,
+                )
+                success = test_result["exit_code"] == 0 and test_result["failed"] == 0
+                tokens_used = int(test_result["duration_s"] * 100) + 1000
+                return success, tokens_used
+            
+            # NEW: Use SWE agent to attempt solving the task
+            from apex.agents.swe_agent import SWEAgent
+            
+            # Check if LLM client is available
+            llm_client = getattr(self, 'llm_client', None)
+            if llm_client is None:
+                # Try to create one if not provided
+                try:
+                    from apex.llm.client import LLMClient
+                    import asyncio
+                    llm_client = LLMClient()
+                    # Ensure LLM is started
+                    asyncio.run(llm_client.ensure_started())
+                except Exception as e:
+                    print(f"Warning: Could not create LLM client: {e}")
+                    # Fall back to old behavior
+                    test_result = RepoManager.run_tests(
+                        repo_path=repo_path,
+                        test_select=record.fail_to_pass if record.fail_to_pass else None,
+                        timeout_s=180,
+                    )
+                    success = test_result["exit_code"] == 0 and test_result["failed"] == 0
+                    tokens_used = int(test_result["duration_s"] * 100) + 1000
+                    return success, tokens_used
+            
+            # Create agent and attempt to solve
+            agent = SWEAgent(llm_client=llm_client)
+            
+            # Run agent asynchronously
+            import asyncio
+            success, tokens_used = asyncio.run(
+                agent.solve_task(
+                    problem_statement=record.problem_statement,
+                    repo_path=Path(repo_path),
+                    fail_tests=record.fail_to_pass if record.fail_to_pass else [],
+                    budget=budget_tokens
+                )
             )
-
-            # Check success: all selected tests must pass
-            success = test_result["exit_code"] == 0 and test_result["failed"] == 0
-
-            # Token accounting for SWE mode
-            # TODO: When agents/LLM are integrated, aggregate actual token usage
-            # For now, use heuristic based on test execution time:
-            # - 100 tokens per second of test execution (rough estimate)
-            # - 1000 base tokens for repository setup overhead
-            # In oracle-smoke mode, this represents the "ground truth" cost
-            tokens_used = int(test_result["duration_s"] * 100) + 1000
-
+            
+            # If agent claims success, verify with actual test run
+            if success:
+                test_result = RepoManager.run_tests(
+                    repo_path=repo_path,
+                    test_select=record.fail_to_pass if record.fail_to_pass else None,
+                    timeout_s=180,
+                )
+                success = test_result["exit_code"] == 0 and test_result["failed"] == 0
+            
             return success, tokens_used
 
         except Exception as e:

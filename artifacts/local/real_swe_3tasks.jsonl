@@ -1,0 +1,3 @@
+{"task_id": "sqlfluff__sqlfluff-1625", "policy": "bandit_v1", "success": false, "tokens_used": 1161, "over_budget": false, "budget": 10000, "seed": 42, "epoch_switches": 0, "notes": "mode=swe,topology_pref=star"}
+{"task_id": "sqlfluff__sqlfluff-2419", "policy": "bandit_v1", "success": false, "tokens_used": 1172, "over_budget": false, "budget": 10000, "seed": 42, "epoch_switches": 0, "notes": "mode=swe,topology_pref=star"}
+{"task_id": "sqlfluff__sqlfluff-1733", "policy": "bandit_v1", "success": false, "tokens_used": 1127, "over_budget": false, "budget": 10000, "seed": 42, "epoch_switches": 0, "notes": "mode=swe,topology_pref=star"}
