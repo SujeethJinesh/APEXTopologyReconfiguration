@@ -383,6 +383,16 @@ class PortableLLMClient:
             self._mgr.shutdown()
             self._started = False
 
+    async def warmup_all(self, prompt: str = "Hello", max_tokens: int = 1) -> None:
+        """Warmup all workers with a small generation."""
+        await self.ensure_started()
+        # Run one small generation per worker
+        tasks = []
+        for i in range(self.config.num_instances):
+            agent_id = f"warmup_{i}"
+            tasks.append(self.complete(prompt, max_tokens=max_tokens, agent_id=agent_id))
+        await asyncio.gather(*tasks)
+
 
 # Keep old class names for compatibility
 LLMClient = PortableLLMClient

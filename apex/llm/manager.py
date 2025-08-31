@@ -59,6 +59,7 @@ def _generate_text(
     timeout_s: int,
 ) -> Dict[str, Any]:
     """Generate text using this worker's backend."""
+    import os
     if _BACKEND is None:
         return {
             "text": "",
@@ -66,8 +67,10 @@ def _generate_text(
             "tokens_out": 0,
             "finish_reason": "error",
             "error": "Backend not initialized in worker",
+            "pid": os.getpid(),
+            "instance_id": _WORKER_ID,
         }
-    return _BACKEND.generate(
+    result = _BACKEND.generate(
         session_id=session_id,
         prompt=prompt,
         max_new_tokens=max_new_tokens,
@@ -76,6 +79,10 @@ def _generate_text(
         stop=stop,
         timeout_s=timeout_s,
     )
+    # Add PID and instance_id to response metadata
+    result["pid"] = os.getpid()
+    result["instance_id"] = _WORKER_ID
+    return result
 
 
 class MultiInstanceLLMManager:

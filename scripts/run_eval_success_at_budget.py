@@ -87,6 +87,11 @@ def main():
         default=120,
         help="Extend episode timeout by this when progress detected (default 2 min)"
     )
+    parser.add_argument(
+        "--eager-llm-start",
+        action="store_true",
+        help="Start & warmup LLM workers before first episode step"
+    )
     
     # LLM backend options
     parser.add_argument(
@@ -140,6 +145,15 @@ def main():
         oracle_smoke=args.oracle_smoke,
         task_list=task_list,  # Pass frozen task list if provided
     )
+    
+    # Eager LLM start if requested
+    if args.eager_llm_start and args.mode != "stub":
+        print("Starting and warming up LLM workers...")
+        import asyncio
+        from apex.llm.client import PortableLLMClient
+        llm_client = PortableLLMClient()
+        asyncio.run(llm_client.warmup_all("warmup", 1))
+        print("LLM workers ready")
     
     # Load tasks
     if task_list:

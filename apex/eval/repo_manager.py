@@ -129,6 +129,25 @@ class RepoManager:
         return repo_path
 
     @staticmethod
+    def get_cache_env() -> dict:
+        """Get environment variables with persistent caches configured.
+        
+        Returns:
+            Dict of cache environment variables
+        """
+        import os
+        env = os.environ.copy()
+        
+        # Persistent caches to avoid repeated downloads
+        home = os.path.expanduser("~")
+        env.setdefault("HF_HOME", os.path.join(home, ".cache", "huggingface"))
+        env.setdefault("HF_HUB_CACHE", os.path.join(env["HF_HOME"], "hub"))
+        env.setdefault("PIP_CACHE_DIR", os.path.join(home, ".cache", "pip"))
+        env.setdefault("TRANSFORMERS_CACHE", env["HF_HOME"])
+        
+        return env
+    
+    @staticmethod
     def bootstrap_environment(repo_path: Path, use_venv: bool = True) -> dict:
         """Bootstrap repository environment (install dependencies).
 
@@ -170,6 +189,7 @@ class RepoManager:
                             capture_output=True,
                             text=True,
                             timeout=60,
+                            env=RepoManager.get_cache_env(),
                         )
                         steps.append(f"Upgrade pip/wheel/setuptools (exit {result.returncode})")
 

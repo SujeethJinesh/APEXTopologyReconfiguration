@@ -20,7 +20,7 @@ class LlamaCppMetalBackend:
         instance_id: int,
         model_path: Optional[str] = None,
         n_ctx: int = 4096,
-        n_gpu_layers: int = -1,
+        n_gpu_layers: int = 18,  # Conservative for 3 workers on 64GB Mac
         n_threads: int = 0,
         seed: int = 42,
         cache_dir: Optional[str] = None,
@@ -69,7 +69,8 @@ class LlamaCppMetalBackend:
         self._llm = Llama(
             model_path=self.model_path,
             n_ctx=self.n_ctx,
-            n_gpu_layers=self.n_gpu_layers,  # Metal offload all layers
+            n_gpu_layers=self.n_gpu_layers,  # Metal offload (conservative)
+            n_batch=128,  # Reduced batch size for 3 workers
             n_threads=self.n_threads or None,
             seed=self.seed,
             vocab_only=False,
