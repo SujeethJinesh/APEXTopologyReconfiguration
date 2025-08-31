@@ -49,8 +49,8 @@ else:
     )
     LLM_NUM_INSTANCES = APEX_NUM_LLM_INSTANCES
 
-# Context window size in tokens - guardrailed
-APEX_LLM_CTX_TOKENS = min(8192, max(512, int(os.getenv("APEX_LLM_CTX_TOKENS", "4096"))))
+# Context window size in tokens - guardrailed (increased for SWE tasks)
+APEX_LLM_CTX_TOKENS = min(16384, max(512, int(os.getenv("APEX_LLM_CTX_TOKENS", "8192"))))
 LLM_CTX_TOKENS = APEX_LLM_CTX_TOKENS  # Alias
 
 # Per-request timeout in seconds - guardrailed

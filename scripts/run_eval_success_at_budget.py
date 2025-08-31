@@ -20,7 +20,7 @@ from apex.eval.stubs.topology_switch import TopologySwitch
 def main():
     parser = argparse.ArgumentParser(description="Run Success@Budget evaluation")
     parser.add_argument("--episodes", type=int, default=12, help="Number of episodes")
-    parser.add_argument("--budget", type=int, default=10000, help="Token budget per episode")
+    parser.add_argument("--budget", type=int, default=32000, help="Token budget per episode")
     parser.add_argument(
         "--policy",
         choices=["static_star", "static_chain", "static_flat", "bandit_v1"],

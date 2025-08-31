@@ -422,8 +422,12 @@ class EvalHarness:
                 tokens_used = int(test_result["duration_s"] * 100) + 1000
                 return success, tokens_used
             
-            # NEW: Use SWE agent to attempt solving the task
-            from apex.agents.swe_agent import SWEAgent
+            # NEW: Use improved SWE agent V2 to attempt solving the task
+            try:
+                from apex.agents.swe_agent_v2 import SWEAgentV2
+            except ImportError:
+                # Fall back to V1 if V2 not available
+                from apex.agents.swe_agent import SWEAgent as SWEAgentV2
             
             # Check if LLM client is available
             llm_client = getattr(self, 'llm_client', None)
@@ -447,8 +451,8 @@ class EvalHarness:
                     tokens_used = int(test_result["duration_s"] * 100) + 1000
                     return success, tokens_used
             
-            # Create agent and attempt to solve
-            agent = SWEAgent(llm_client=llm_client)
+            # Create V2 agent with improved prompts and error handling
+            agent = SWEAgentV2(llm_client=llm_client)
             
             # Run agent asynchronously
             import asyncio
