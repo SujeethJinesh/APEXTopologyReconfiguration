@@ -2,8 +2,22 @@
 
 **Repository:** APEXTopologyReconfiguration  
 **Branch:** sujinesh/macbook_mvp_run  
-**Commit SHA:** 4869f6a2b775d1d95e1d61af82f1f460afdf7fdd  
+**Commit SHA:** a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c  
 **GitHub Base:** https://github.com/SujeethJinesh/APEXTopologyReconfiguration
+
+## Latest Changes (Commit: a97f528)
+
+### Modified Files
+- `apex/eval/repo_manager.py` - Added persistent cache configuration
+- `apex/llm/backends/llama_cpp_metal.py` - Conservative Metal settings (n_gpu_layers=18, n_batch=128)
+- `apex/llm/client.py` - Added warmup_all() method for eager initialization
+- `apex/llm/manager.py` - Added PID tracking in responses
+- `scripts/run_eval_success_at_budget.py` - Added --eager-llm-start flag and timeout options
+
+### New Files
+- `test_llm_smoke.py` - LLM smoke test with PID verification
+- `artifacts/local/real_n1_test.jsonl` - Real mode test results
+- `artifacts/local/run_log_real.txt` - Real mode execution log
 
 ## Repository Structure
 
@@ -41,199 +55,202 @@ APEXTopologyReconfiguration/
 ## Core APEX Framework
 
 ### Main Package
-- [apex/__init__.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/__init__.py)
-- [apex/_version.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/_version.py)
+- [apex/__init__.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/__init__.py)
+- [apex/_version.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/_version.py)
 
 ### A2A Protocol
-- [apex/a2a/__init__.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/a2a/__init__.py)
-- [apex/a2a/protocol.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/a2a/protocol.py)
-- [apex/a2a/sdk_adapter.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/a2a/sdk_adapter.py)
+- [apex/a2a/__init__.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/a2a/__init__.py)
+- [apex/a2a/protocol.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/a2a/protocol.py)
+- [apex/a2a/sdk_adapter.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/a2a/sdk_adapter.py)
 
 ### Agents
-- [apex/agents/__init__.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/agents/__init__.py)
-- [apex/agents/base.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/agents/base.py)
-- [apex/agents/episode.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/agents/episode.py)
-- [apex/agents/scripted.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/agents/scripted.py)
+- [apex/agents/__init__.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/agents/__init__.py)
+- [apex/agents/base.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/agents/base.py)
+- [apex/agents/episode.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/agents/episode.py)
+- [apex/agents/scripted.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/agents/scripted.py)
 
 ### Agent Roles
-- [apex/agents/roles/__init__.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/agents/roles/__init__.py)
-- [apex/agents/roles/coder.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/agents/roles/coder.py)
-- [apex/agents/roles/critic.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/agents/roles/critic.py)
-- [apex/agents/roles/planner.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/agents/roles/planner.py)
-- [apex/agents/roles/runner.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/agents/roles/runner.py)
-- [apex/agents/roles/summarizer.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/agents/roles/summarizer.py)
+- [apex/agents/roles/__init__.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/agents/roles/__init__.py)
+- [apex/agents/roles/coder.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/agents/roles/coder.py)
+- [apex/agents/roles/critic.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/agents/roles/critic.py)
+- [apex/agents/roles/planner.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/agents/roles/planner.py)
+- [apex/agents/roles/runner.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/agents/roles/runner.py)
+- [apex/agents/roles/summarizer.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/agents/roles/summarizer.py)
 
 ### Configuration
-- [apex/config/__init__.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/config/__init__.py)
-- [apex/config/defaults.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/config/defaults.py) ⭐
+- [apex/config/__init__.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/config/__init__.py)
+- [apex/config/defaults.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/config/defaults.py) ⭐
 
 ### Controller (Bandit)
-- [apex/controller/__init__.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/controller/__init__.py)
-- [apex/controller/bandit_api.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/controller/bandit_api.py)
-- [apex/controller/bandit_v1.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/controller/bandit_v1.py)
-- [apex/controller/controller.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/controller/controller.py)
-- [apex/controller/features.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/controller/features.py)
-- [apex/controller/reward.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/controller/reward.py)
+- [apex/controller/__init__.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/controller/__init__.py)
+- [apex/controller/bandit_api.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/controller/bandit_api.py)
+- [apex/controller/bandit_v1.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/controller/bandit_v1.py)
+- [apex/controller/controller.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/controller/controller.py)
+- [apex/controller/features.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/controller/features.py)
+- [apex/controller/reward.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/controller/reward.py)
 
 ### Coordinator
-- [apex/coord/__init__.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/coord/__init__.py)
-- [apex/coord/coordinator.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/coord/coordinator.py)
+- [apex/coord/__init__.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/coord/__init__.py)
+- [apex/coord/coordinator.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/coord/coordinator.py)
 
 ### Evaluation
-- [apex/eval/__init__.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/eval/__init__.py)
-- [apex/eval/harness.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/eval/harness.py)
-- [apex/eval/metadata.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/eval/metadata.py) ⭐
-- [apex/eval/progress.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/eval/progress.py) ⭐
-- [apex/eval/repo_manager.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/eval/repo_manager.py)
-- [apex/eval/task.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/eval/task.py)
+- [apex/eval/__init__.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/eval/__init__.py)
+- [apex/eval/harness.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/eval/harness.py)
+- [apex/eval/metadata.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/eval/metadata.py) ⭐
+- [apex/eval/progress.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/eval/progress.py) ⭐
+- [apex/eval/repo_manager.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/eval/repo_manager.py) ⭐ UPDATED
+- [apex/eval/task.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/eval/task.py)
 
 ### Evaluation Providers
-- [apex/eval/providers/__init__.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/eval/providers/__init__.py)
-- [apex/eval/providers/swe_lite.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/eval/providers/swe_lite.py)
+- [apex/eval/providers/__init__.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/eval/providers/__init__.py)
+- [apex/eval/providers/swe_lite.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/eval/providers/swe_lite.py)
 
 ### LLM Backend (NEW - PR #15) ⭐
-- [apex/llm/__init__.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/llm/__init__.py)
-- [apex/llm/client.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/llm/client.py) ⭐
-- [apex/llm/manager.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/llm/manager.py) ⭐
-- [apex/llm/gguf_fetch.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/llm/gguf_fetch.py) ⭐
-- [apex/llm/smoke.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/llm/smoke.py)
+- [apex/llm/__init__.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/llm/__init__.py)
+- [apex/llm/client.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/llm/client.py) ⭐ UPDATED
+- [apex/llm/manager.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/llm/manager.py) ⭐ UPDATED
+- [apex/llm/gguf_fetch.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/llm/gguf_fetch.py) ⭐
+- [apex/llm/smoke.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/llm/smoke.py)
 
 ### LLM Backends
-- [apex/llm/backends/__init__.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/llm/backends/__init__.py)
-- [apex/llm/backends/base.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/llm/backends/base.py)
-- [apex/llm/backends/hf_cuda.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/llm/backends/hf_cuda.py) ⭐
-- [apex/llm/backends/llama_cpp_metal.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/llm/backends/llama_cpp_metal.py) ⭐
+- [apex/llm/backends/__init__.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/llm/backends/__init__.py)
+- [apex/llm/backends/base.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/llm/backends/base.py)
+- [apex/llm/backends/hf_cuda.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/llm/backends/hf_cuda.py) ⭐
+- [apex/llm/backends/llama_cpp_metal.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/llm/backends/llama_cpp_metal.py) ⭐ UPDATED
 
 ### MCP Adapters
-- [apex/mcp/__init__.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/mcp/__init__.py)
-- [apex/mcp/fastmcp_server.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/mcp/fastmcp_server.py)
-- [apex/mcp/fs.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/mcp/fs.py) ⭐
-- [apex/mcp/test.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/mcp/test.py) ⭐
+- [apex/mcp/__init__.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/mcp/__init__.py)
+- [apex/mcp/fastmcp_server.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/mcp/fastmcp_server.py)
+- [apex/mcp/fs.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/mcp/fs.py) ⭐
+- [apex/mcp/test.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/mcp/test.py) ⭐
 
 ### Runtime
-- [apex/runtime/__init__.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/runtime/__init__.py)
-- [apex/runtime/coordinator.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/runtime/coordinator.py)
-- [apex/runtime/errors.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/runtime/errors.py)
-- [apex/runtime/message.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/runtime/message.py)
-- [apex/runtime/router.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/runtime/router.py)
-- [apex/runtime/router_api.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/runtime/router_api.py)
-- [apex/runtime/switch.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/runtime/switch.py)
-- [apex/runtime/switch_api.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/runtime/switch_api.py)
-- [apex/runtime/topology_guard.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/runtime/topology_guard.py)
+- [apex/runtime/__init__.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/runtime/__init__.py)
+- [apex/runtime/coordinator.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/runtime/coordinator.py)
+- [apex/runtime/errors.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/runtime/errors.py)
+- [apex/runtime/message.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/runtime/message.py)
+- [apex/runtime/router.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/runtime/router.py)
+- [apex/runtime/router_api.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/runtime/router_api.py)
+- [apex/runtime/switch.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/runtime/switch.py)
+- [apex/runtime/switch_api.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/runtime/switch_api.py)
+- [apex/runtime/topology_guard.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/runtime/topology_guard.py)
 
 ### Topology
-- [apex/topology/__init__.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/topology/__init__.py)
-- [apex/topology/semantics.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/topology/semantics.py)
+- [apex/topology/__init__.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/topology/__init__.py)
+- [apex/topology/semantics.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/topology/semantics.py)
 
 ## Tests
 
 ### Core Tests
-- [tests/test_llm_parallel_isolation.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/tests/test_llm_parallel_isolation.py) ⭐
-- [tests/test_llm_portable_manager.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/tests/test_llm_portable_manager.py) ⭐
-- [tests/test_llm_concurrency_timing.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/tests/test_llm_concurrency_timing.py) ⭐
+- [tests/test_llm_parallel_isolation.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/tests/test_llm_parallel_isolation.py) ⭐
+- [tests/test_llm_portable_manager.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/tests/test_llm_portable_manager.py) ⭐
+- [tests/test_llm_concurrency_timing.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/tests/test_llm_concurrency_timing.py) ⭐
 
 ### A2A Tests
-- [tests/test_a2a_chain_topology.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/tests/test_a2a_chain_topology.py)
-- [tests/test_a2a_flat_topology.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/tests/test_a2a_flat_topology.py)
-- [tests/test_a2a_star_topology.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/tests/test_a2a_star_topology.py)
-- [tests/test_a2a_topology_switch_runtime.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/tests/test_a2a_topology_switch_runtime.py)
+- [tests/test_a2a_chain_topology.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/tests/test_a2a_chain_topology.py)
+- [tests/test_a2a_flat_topology.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/tests/test_a2a_flat_topology.py)
+- [tests/test_a2a_star_topology.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/tests/test_a2a_star_topology.py)
+- [tests/test_a2a_topology_switch_runtime.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/tests/test_a2a_topology_switch_runtime.py)
 
 ### MCP Tests
-- [tests/test_mcp_fs_atomic_write.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/tests/test_mcp_fs_atomic_write.py)
-- [tests/test_mcp_traversal_denial.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/tests/test_mcp_traversal_denial.py)
-- [tests/test_pytest_adapter_discover_run.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/tests/test_pytest_adapter_discover_run.py)
+- [tests/test_mcp_fs_atomic_write.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/tests/test_mcp_fs_atomic_write.py)
+- [tests/test_mcp_traversal_denial.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/tests/test_mcp_traversal_denial.py)
+- [tests/test_pytest_adapter_discover_run.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/tests/test_pytest_adapter_discover_run.py)
 
 ### Controller Tests
-- [tests/test_controller_dwell_cooldown.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/tests/test_controller_dwell_cooldown.py)
-- [tests/test_controller_tick_latency.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/tests/test_controller_tick_latency.py)
-- [tests/test_controller_tick_smoke.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/tests/test_controller_tick_smoke.py)
-- [tests/test_bandit_determinism.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/tests/test_bandit_determinism.py)
-- [tests/test_bandit_latency.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/tests/test_bandit_latency.py)
+- [tests/test_controller_dwell_cooldown.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/tests/test_controller_dwell_cooldown.py)
+- [tests/test_controller_tick_latency.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/tests/test_controller_tick_latency.py)
+- [tests/test_controller_tick_smoke.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/tests/test_controller_tick_smoke.py)
+- [tests/test_bandit_determinism.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/tests/test_bandit_determinism.py)
+- [tests/test_bandit_latency.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/tests/test_bandit_latency.py)
 
 ### Evaluation Tests
-- [tests/test_eval_harness_stub.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/tests/test_eval_harness_stub.py)
-- [tests/test_harness_swe.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/tests/test_harness_swe.py)
-- [tests/test_swe_provider.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/tests/test_swe_provider.py)
-- [tests/test_repo_manager.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/tests/test_repo_manager.py)
+- [tests/test_eval_harness_stub.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/tests/test_eval_harness_stub.py)
+- [tests/test_harness_swe.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/tests/test_harness_swe.py)
+- [tests/test_swe_provider.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/tests/test_swe_provider.py)
+- [tests/test_repo_manager.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/tests/test_repo_manager.py)
 
 ## Scripts
 
 ### Evaluation Scripts
-- [scripts/run_eval_success_at_budget.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/scripts/run_eval_success_at_budget.py) ⭐
-- [scripts/compute_cp.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/scripts/compute_cp.py)
-- [scripts/compute_lift.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/scripts/compute_lift.py)
-- [scripts/pick_best_static.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/scripts/pick_best_static.py)
-- [scripts/validate_swe_jsonl.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/scripts/validate_swe_jsonl.py)
+- [scripts/run_eval_success_at_budget.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/scripts/run_eval_success_at_budget.py) ⭐ UPDATED
+- [scripts/compute_cp.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/scripts/compute_cp.py)
+- [scripts/compute_lift.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/scripts/compute_lift.py)
+- [scripts/pick_best_static.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/scripts/pick_best_static.py)
+- [test_llm_smoke.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/test_llm_smoke.py) ⭐ NEW
+- [scripts/validate_swe_jsonl.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/scripts/validate_swe_jsonl.py)
 
 ### Data Generation
-- [scripts/generate_real_task_list.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/scripts/generate_real_task_list.py)
-- [scripts/generate_swe_fixtures.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/scripts/generate_swe_fixtures.py)
-- [scripts/make_task_list.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/scripts/make_task_list.py)
+- [scripts/generate_real_task_list.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/scripts/generate_real_task_list.py)
+- [scripts/generate_swe_fixtures.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/scripts/generate_swe_fixtures.py)
+- [scripts/make_task_list.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/scripts/make_task_list.py)
 
 ## Documentation
 
 ### PR #15 Evidence (LLM Backend)
-- [docs/pr15_complete_evidence.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/docs/pr15_complete_evidence.md) ⭐
-- [docs/pr15_final_verification.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/docs/pr15_final_verification.md) ⭐
-- [docs/pr15_final_review_response.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/docs/pr15_final_review_response.md)
-- [docs/pr15_technical_fixes.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/docs/pr15_technical_fixes.md)
+- [docs/pr15_complete_evidence.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/docs/pr15_complete_evidence.md) ⭐
+- [docs/pr15_final_verification.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/docs/pr15_final_verification.md) ⭐
+- [docs/pr15_final_review_response.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/docs/pr15_final_review_response.md)
+- [docs/pr15_technical_fixes.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/docs/pr15_technical_fixes.md)
 
 ### LLM Documentation
-- [docs/llm_installation.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/docs/llm_installation.md) ⭐
-- [docs/llm_architecture.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/docs/llm_architecture.md)
-- [docs/llm_implementation_summary.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/docs/llm_implementation_summary.md)
-- [docs/llm_parallel_implementation.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/docs/llm_parallel_implementation.md)
+- [docs/llm_installation.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/docs/llm_installation.md) ⭐
+- [docs/llm_architecture.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/docs/llm_architecture.md)
+- [docs/llm_implementation_summary.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/docs/llm_implementation_summary.md)
+- [docs/llm_parallel_implementation.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/docs/llm_parallel_implementation.md)
 
 ### Milestone A5 Documentation
-- [docs/A5/FINAL_EVIDENCE.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/docs/A5/FINAL_EVIDENCE.md)
-- [docs/A5/FINAL_EVIDENCE_v2.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/docs/A5/FINAL_EVIDENCE_v2.md)
-- [docs/A5/F5.1/T5.1_summary.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/docs/A5/F5.1/T5.1_summary.md)
-- [docs/A5/F5.3/T5.3_summary.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/docs/A5/F5.3/T5.3_summary.md)
-- [docs/A5/F5.4/T5.4_summary.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/docs/A5/F5.4/T5.4_summary.md)
-- [docs/A5/F5.5/T5.5_decision.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/docs/A5/F5.5/T5.5_decision.md)
+- [docs/A5/FINAL_EVIDENCE.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/docs/A5/FINAL_EVIDENCE.md)
+- [docs/A5/FINAL_EVIDENCE_v2.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/docs/A5/FINAL_EVIDENCE_v2.md)
+- [docs/A5/F5.1/T5.1_summary.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/docs/A5/F5.1/T5.1_summary.md)
+- [docs/A5/F5.3/T5.3_summary.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/docs/A5/F5.3/T5.3_summary.md)
+- [docs/A5/F5.4/T5.4_summary.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/docs/A5/F5.4/T5.4_summary.md)
+- [docs/A5/F5.5/T5.5_decision.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/docs/A5/F5.5/T5.5_decision.md)
 
 ### Project Configuration
-- [pyproject.toml](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/pyproject.toml)
-- [Makefile](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/Makefile)
-- [.github/workflows/ci.yml](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/.github/workflows/ci.yml)
-- [.pre-commit-config.yaml](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/.pre-commit-config.yaml)
-- [.gitignore](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/.gitignore)
+- [pyproject.toml](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/pyproject.toml)
+- [Makefile](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/Makefile)
+- [.github/workflows/ci.yml](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/.github/workflows/ci.yml)
+- [.pre-commit-config.yaml](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/.pre-commit-config.yaml)
+- [.gitignore](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/.gitignore)
 
 ### Main Documentation
-- [README.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/README.md)
-- [mvp-spec.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/mvp-spec.md)
-- [design_doc.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/design_doc.md)
-- [CLAUDE.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/CLAUDE.md)
+- [README.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/README.md)
+- [mvp-spec.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/mvp-spec.md)
+- [design_doc.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/design_doc.md)
+- [CLAUDE.md](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/CLAUDE.md)
 
 ## Artifacts
 
 ### Local Test Results
-- [artifacts/local/llm_workers.jsonl](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/artifacts/local/llm_workers.jsonl) ⭐
-- [artifacts/local/mcp_smoke.jsonl](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/artifacts/local/mcp_smoke.jsonl) ⭐
-- [artifacts/local/apex_bandit_stub.jsonl](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/artifacts/local/apex_bandit_stub.jsonl)
+- [artifacts/local/llm_workers.jsonl](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/artifacts/local/llm_workers.jsonl) ⭐
+- [artifacts/local/mcp_smoke.jsonl](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/artifacts/local/mcp_smoke.jsonl) ⭐
+- [artifacts/local/apex_bandit_stub.jsonl](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/artifacts/local/apex_bandit_stub.jsonl)
+- [artifacts/local/real_n1_test.jsonl](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/artifacts/local/real_n1_test.jsonl) ⭐ NEW
+- [artifacts/local/run_log_real.txt](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/artifacts/local/run_log_real.txt) ⭐ NEW
 
 ### Evaluation Results (A5)
-- [docs/A5/artifacts/swe/dev/](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/tree/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/docs/A5/artifacts/swe/dev/)
-- [docs/A5/artifacts/swe/test/](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/tree/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/docs/A5/artifacts/swe/test/)
+- [docs/A5/artifacts/swe/dev/](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/tree/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/docs/A5/artifacts/swe/dev/)
+- [docs/A5/artifacts/swe/test/](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/tree/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/docs/A5/artifacts/swe/test/)
 
 ## Key Files for PR #15 Review
 
 ### Critical Implementation Files
-1. **LLM Manager:** [apex/llm/manager.py#L110-156](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/llm/manager.py#L110-L156) - Process pool with spawn context
-2. **LLM Client:** [apex/llm/client.py#L286-292](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/llm/client.py#L286-L292) - SHA-1 deterministic mapping
-3. **Budget Enforcement:** [apex/llm/client.py#L250-281](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/llm/client.py#L250-L281) - Hard deny before backend
-4. **GGUF Download:** [apex/llm/gguf_fetch.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/llm/gguf_fetch.py) - On-demand model fetch
-5. **Mac Backend:** [apex/llm/backends/llama_cpp_metal.py#L149-158](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/llm/backends/llama_cpp_metal.py#L149-L158) - Context clamping
-6. **Progress Tracking:** [apex/eval/progress.py#L51-88](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/eval/progress.py#L51-L88) - Timeout extensions
+1. **LLM Manager:** [apex/llm/manager.py#L110-156](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/llm/manager.py#L110-L156) - Process pool with spawn context
+2. **LLM Client:** [apex/llm/client.py#L286-292](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/llm/client.py#L286-L292) - SHA-1 deterministic mapping
+3. **Budget Enforcement:** [apex/llm/client.py#L250-281](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/llm/client.py#L250-L281) - Hard deny before backend
+4. **GGUF Download:** [apex/llm/gguf_fetch.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/llm/gguf_fetch.py) - On-demand model fetch
+5. **Mac Backend:** [apex/llm/backends/llama_cpp_metal.py#L149-158](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/llm/backends/llama_cpp_metal.py#L149-L158) - Context clamping
+6. **Progress Tracking:** [apex/eval/progress.py#L51-88](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/eval/progress.py#L51-L88) - Timeout extensions
 
 ### Critical Test Files
-1. **Parallel Isolation:** [tests/test_llm_parallel_isolation.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/tests/test_llm_parallel_isolation.py)
-2. **Budget Deny Test:** [tests/test_llm_parallel_isolation.py#L150-183](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/tests/test_llm_parallel_isolation.py#L150-L183)
-3. **Concurrency Timing:** [tests/test_llm_concurrency_timing.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/tests/test_llm_concurrency_timing.py)
+1. **Parallel Isolation:** [tests/test_llm_parallel_isolation.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/tests/test_llm_parallel_isolation.py)
+2. **Budget Deny Test:** [tests/test_llm_parallel_isolation.py#L150-183](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/tests/test_llm_parallel_isolation.py#L150-L183)
+3. **Concurrency Timing:** [tests/test_llm_concurrency_timing.py](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/tests/test_llm_concurrency_timing.py)
 
 ### Configuration
-1. **Mac Defaults:** [apex/config/defaults.py#L41-44](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/config/defaults.py#L41-L44) - 3 instances for 64GB RAM
-2. **Auto-detection:** [apex/config/defaults.py#L19-36](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/4869f6a2b775d1d95e1d61af82f1f460afdf7fdd/apex/config/defaults.py#L19-L36) - Platform detection
+1. **Mac Defaults:** [apex/config/defaults.py#L41-44](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/config/defaults.py#L41-L44) - 3 instances for 64GB RAM
+2. **Auto-detection:** [apex/config/defaults.py#L19-36](https://github.com/SujeethJinesh/APEXTopologyReconfiguration/blob/a97f528eb23fdc9a97d744aa0d8355dbcb1f8f9c/apex/config/defaults.py#L19-L36) - Platform detection
 
 ## Summary
 
