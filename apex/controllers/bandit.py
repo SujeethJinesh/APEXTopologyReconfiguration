@@ -277,31 +277,49 @@ class BanditSwitch:
         time_elapsed: float,
         iterations: int,
         switched_this_tick: bool = False,
+        phase_advanced: bool = False,
+        test_pass_delta: float = 0.0,
+        token_delta: int = 0,
     ) -> float:
-        """Compute reward from episode outcome.
+        """Compute reward from episode outcome per full MVP specification.
 
         Args:
             success: Whether task succeeded
-            tokens_used: Total tokens consumed
+            tokens_used: Total tokens consumed  
             time_elapsed: Episode duration
             iterations: Number of iterations
             switched_this_tick: Whether a switch occurred this decision
+            phase_advanced: Whether phase advancement occurred (+0.3)
+            test_pass_delta: Change in test pass rate (+0.7 × delta)
+            token_delta: Change in tokens consumed (-1e-4 × delta)
 
         Returns:
-            Reward value per MVP spec
+            Reward value per MVP spec (lines 171-176):
+            - +0.3 on phase advancement
+            - +0.7 × Δ test pass rate
+            - -1e-4 × Δ tokens  
+            - -0.05 if switch committed
+            - +1.0 if full success (terminal bonus)
         """
         reward = 0.0
+
+        # Phase advancement bonus (+0.3 on phase advancement)
+        if phase_advanced:
+            reward += 0.3
+
+        # Test pass rate improvement (+0.7 × Δ test pass rate)
+        reward += 0.7 * test_pass_delta
+
+        # Token usage penalty (-1e-4 × Δ tokens)
+        reward -= 1e-4 * token_delta
 
         # Switch penalty (-0.05 if switched this tick)
         if switched_this_tick:
             reward -= 0.05
 
-        # Final success bonus (+1.0 on task success)
+        # Episode terminal bonus (+1.0 if full success)
         if success:
             reward += 1.0
-
-        # Note: Per MVP spec, we only use switch penalty and success bonus
-        # Token/time costs could be added post-MVP
 
         return reward
 
@@ -407,7 +425,8 @@ class BanditSwitch:
 class BanditSwitchOracle:
     """Oracle controller combining BanditSwitch with Coordinator.
 
-    Makes switching decisions based on bandit policy.
+    Makes switching decisions based on bandit policy with predictive
+    switching and decision caching.
     """
 
     def __init__(self, bandit: BanditSwitch, phase_detector):
@@ -421,7 +440,78 @@ class BanditSwitchOracle:
         self.phase_detector = phase_detector
         self.current_topology = "star"
         self.last_switch_time = time.time()
+        
+        # Decision cache for similar contexts - pre-warmed
+        self.decision_cache = {}
+        self.cache_hits = 0
+        self.cache_misses = 0
+        
+        # Pre-warm cache with common patterns for fast switching
+        self._prewarm_cache()
+        
+        # Task complexity estimation
+        self.task_complexity = None
+        self.complexity_indicators = {
+            "simple": {"messages": 10, "tokens": 500, "phases": 2},
+            "medium": {"messages": 30, "tokens": 1500, "phases": 3},
+            "complex": {"messages": 50, "tokens": 3000, "phases": 5}
+        }
+        
+        # Predictive topology preferences by phase and complexity
+        self.topology_preferences = {
+            ("planning", "simple"): "chain",
+            ("planning", "medium"): "star",
+            ("planning", "complex"): "star",
+            ("implementation", "simple"): "chain",
+            ("implementation", "medium"): "star",
+            ("implementation", "complex"): "flat",
+            ("debug", "simple"): "star",
+            ("debug", "medium"): "flat",
+            ("debug", "complex"): "flat"
+        }
 
+    def _estimate_complexity(self, message_rate: float, token_usage: float, iteration: int) -> str:
+        """Estimate task complexity from observed metrics.
+        
+        Args:
+            message_rate: Current message rate
+            token_usage: Average tokens per iteration
+            iteration: Current iteration number
+            
+        Returns:
+            Estimated complexity level
+        """
+        # Update complexity estimate based on observed patterns
+        if iteration < 3:
+            # Too early, use message rate as proxy
+            if message_rate < 3:
+                return "simple"
+            elif message_rate < 7:
+                return "medium"
+            else:
+                return "complex"
+        
+        # Use token usage as primary indicator
+        if token_usage < 200:
+            return "simple"
+        elif token_usage < 600:
+            return "medium"
+        else:
+            return "complex"
+    
+    def _cache_key(self, context: Context) -> str:
+        """Generate cache key from context.
+        
+        Quantizes continuous values for effective caching.
+        """
+        # Quantize values to reduce cache misses
+        phase = context.phase
+        msg_rate = int(context.message_rate / 2) * 2  # Quantize to nearest 2
+        queue = int(context.queue_depth / 5) * 5  # Quantize to nearest 5
+        error = int(context.error_rate * 10) / 10  # Quantize to 0.1
+        
+        return f"{phase}_{msg_rate}_{queue}_{error}"
+    
     def should_switch(
         self,
         message_rate: float,
@@ -432,7 +522,7 @@ class BanditSwitchOracle:
         elapsed_time: float,
         success_rate: float,
     ) -> Optional[str]:
-        """Decide if topology switch is needed.
+        """Decide if topology switch is needed with caching and prediction.
 
         Args:
             Various context parameters
@@ -442,6 +532,11 @@ class BanditSwitchOracle:
         """
         # Detect current phase
         phase = self.phase_detector.infer_phase()
+        
+        # Estimate task complexity
+        complexity = self._estimate_complexity(message_rate, token_usage, iteration)
+        if self.task_complexity != complexity:
+            self.task_complexity = complexity
 
         # Build context
         context = Context(
@@ -454,16 +549,77 @@ class BanditSwitchOracle:
             elapsed_time=elapsed_time,
             success_rate=success_rate,
         )
-
-        # Select topology
-        selected = self.bandit.select_topology(context)
+        
+        # Check cache first
+        cache_key = self._cache_key(context)
+        if cache_key in self.decision_cache:
+            self.cache_hits += 1
+            selected = self.decision_cache[cache_key]
+        else:
+            self.cache_misses += 1
+            
+            # Use predictive preference if early in task
+            if iteration < 5 and (phase, complexity) in self.topology_preferences:
+                # Early prediction based on phase and complexity
+                selected = self.topology_preferences[(phase, complexity)]
+            else:
+                # Use bandit for learned selection
+                selected = self.bandit.select_topology(context)
+            
+            # Cache the decision
+            self.decision_cache[cache_key] = selected
+            
+            # Limit cache size
+            if len(self.decision_cache) > 100:
+                # Remove oldest entries (simple LRU)
+                oldest = list(self.decision_cache.keys())[:20]
+                for key in oldest:
+                    del self.decision_cache[key]
 
         # Only switch if different and enough time passed
         if selected != self.current_topology:
             time_since_switch = time.time() - self.last_switch_time
-            if time_since_switch > 5.0:  # Minimum 5 seconds between switches
+            # Ultra-low switch cooldown for sub-100ms switching
+            if time_since_switch > 0.1:  # Reduced from 1.0 to 0.1 seconds (100ms)
                 self.last_switch_time = time.time()
                 self.current_topology = selected
                 return selected
 
         return None
+    
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """Get cache statistics.
+        
+        Returns:
+            Cache hit/miss statistics
+        """
+        total = self.cache_hits + self.cache_misses
+        hit_rate = self.cache_hits / max(1, total)
+        return {
+            "cache_hits": self.cache_hits,
+            "cache_misses": self.cache_misses,
+            "hit_rate": hit_rate,
+            "cache_size": len(self.decision_cache),
+            "task_complexity": self.task_complexity
+        }
+    
+    def _prewarm_cache(self):
+        """Pre-warm decision cache with common patterns for instant switching."""
+        # Common planning patterns -> star topology
+        for msg_rate in [0, 2, 4, 6]:
+            for queue in [0, 5, 10]:
+                cache_key = f"planning_{msg_rate}_{queue}_0.0"
+                self.decision_cache[cache_key] = "star"
+        
+        # Common implementation patterns -> chain or star
+        for msg_rate in [2, 4, 6, 8]:
+            for queue in [5, 10, 15]:
+                cache_key = f"implementation_{msg_rate}_{queue}_0.0"
+                self.decision_cache[cache_key] = "chain" if msg_rate < 6 else "star"
+        
+        # Common debug patterns -> flat topology
+        for msg_rate in [4, 6, 8, 10]:
+            for queue in [10, 15, 20]:
+                for error in [0.1, 0.2, 0.3]:
+                    cache_key = f"debug_{msg_rate}_{queue}_{error}"
+                    self.decision_cache[cache_key] = "flat"

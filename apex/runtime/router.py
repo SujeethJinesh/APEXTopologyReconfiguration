@@ -253,36 +253,42 @@ class Router:
         self._accepting_next = False
 
     def reenqueue_next_into_active(self):
-        """Re-enqueue next epoch messages into active (ABORT phase).
+        """Re-enqueue next epoch messages into active (ABORT phase) - optimized.
 
         Preserves FIFO order when moving messages back.
         """
-        # Collect all next-epoch queues
-        for (agent, epoch), q_next in list(self._queues.items()):
-            if epoch == self._next_epoch:
-                q_active = self._q(agent, self._active_epoch)
-
-                # FIFO preservation: dequeue from front, enqueue to back
-                messages_to_move = []
-                while not q_next.empty():
-                    try:
-                        msg = q_next.get_nowait()  # FIFO get from next
-                        messages_to_move.append(msg)
-                    except asyncio.QueueEmpty:
-                        break
-
-                # Re-enqueue in same FIFO order
-                for msg in messages_to_move:
+        # Pre-filter next-epoch queues for efficiency
+        next_queues = [(agent, q_next) for (agent, epoch), q_next in self._queues.items()
+                      if epoch == self._next_epoch]
+        
+        # Process all queues in batch
+        for agent, q_next in next_queues:
+            if q_next.empty():
+                continue  # Skip empty queues early
+                
+            q_active = self._q(agent, self._active_epoch)
+            
+            # Batch dequeue for efficiency
+            messages_to_move = []
+            while not q_next.empty():
+                try:
+                    msg = q_next.get_nowait()
                     msg.redelivered = True
-                    try:
-                        q_active.put_nowait(msg)  # FIFO put to active
-                    except asyncio.QueueFull:
-                        msg.drop_reason = "Queue full on ABORT re-enqueue"
-                        # Log dropped message in production
-                        logger.warning(
-                            "Message dropped on ABORT re-enqueue",
-                            extra={"msg_id": msg.msg_id, "agent": str(agent)},
-                        )
+                    messages_to_move.append(msg)
+                except asyncio.QueueEmpty:
+                    break
+            
+            # Batch re-enqueue
+            for msg in messages_to_move:
+                try:
+                    q_active.put_nowait(msg)
+                except asyncio.QueueFull:
+                    msg.drop_reason = "Queue full on ABORT re-enqueue"
+                    # Log dropped message in production
+                    logger.warning(
+                        "Message dropped on ABORT re-enqueue",
+                        extra={"msg_id": msg.msg_id, "agent": str(agent)},
+                    )
 
         self._accepting_next = False
 
@@ -304,8 +310,9 @@ class Router:
         return 0
 
     def is_active_drained(self) -> bool:
-        """Check if all active epoch queues are empty."""
-        for (agent, epoch), q in self._queues.items():
-            if epoch == self._active_epoch and not q.empty():
-                return False
-        return True
+        """Check if all active epoch queues are empty - optimized for speed."""
+        # Use list comprehension for faster iteration
+        active_queues = [q for (agent, epoch), q in self._queues.items() 
+                        if epoch == self._active_epoch]
+        # Quick check using any() - stops at first non-empty
+        return not any(not q.empty() for q in active_queues)
