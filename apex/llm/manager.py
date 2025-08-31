@@ -21,8 +21,8 @@ _WORKER_ID: Optional[int] = None
 
 def _init_worker(backend_factory: Callable, worker_id: int):
     """Initialize worker process with backend."""
-    import os
     import json
+    import os
     global _BACKEND, _WORKER_ID
     _WORKER_ID = worker_id
     _BACKEND = backend_factory(instance_id=worker_id)
@@ -59,11 +59,11 @@ def _generate_text(
     timeout_s: int,
 ) -> Dict[str, Any]:
     """Generate text using this worker's backend."""
-    import os
-    import time
     import json
+    import os
     import platform
     import resource
+    import time
     
     # Get memory info using resource module
     try:
@@ -199,9 +199,13 @@ class MultiInstanceLLMManager:
         self._ready = [False] * num_instances
         self._start_time = time.time()
 
-    async def start(self) -> None:
-        """Start all backend instances and run warmup."""
-        print(f"Starting {self._num} LLM instances...")
+    async def start(self, timeout_s: int = 60) -> None:
+        """Start all backend instances and run warmup with timeout.
+        
+        Args:
+            timeout_s: Maximum time to wait for all instances to start (default 60s)
+        """
+        print(f"Starting {self._num} LLM instances (timeout: {timeout_s}s)...")
 
         # Health check barrier: ping each worker to ensure it's ready
         print("Running health check on all instances...")
@@ -210,8 +214,18 @@ class MultiInstanceLLMManager:
             executor = self._executors[i]
             health_tasks.append(asyncio.get_event_loop().run_in_executor(executor, _warmup_backend))
 
-        # Wait for all health checks
-        health_results = await asyncio.gather(*health_tasks, return_exceptions=True)
+        # Wait for all health checks with timeout
+        try:
+            health_results = await asyncio.wait_for(
+                asyncio.gather(*health_tasks, return_exceptions=True),
+                timeout=timeout_s
+            )
+        except asyncio.TimeoutError:
+            print(f"ERROR: LLM initialization timed out after {timeout_s}s")
+            # Kill executors to clean up
+            for executor in self._executors:
+                executor.shutdown(wait=False, cancel_futures=True)
+            raise RuntimeError(f"LLM instances failed to start within {timeout_s}s")
 
         # Check health results
         num_ready = 0

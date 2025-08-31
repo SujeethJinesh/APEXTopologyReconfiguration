@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .harness import EvalHarness, StubTask
+from .harness import EvalHarness
 from .task import Task, TaskResult
 
-__all__ = ["EvalHarness", "StubTask", "Task", "TaskResult"]
+__all__ = ["EvalHarness", "Task", "TaskResult"]

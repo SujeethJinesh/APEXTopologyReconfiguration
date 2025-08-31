@@ -1,10 +1,8 @@
 """Minimal SWE-bench agent that actually attempts to solve tasks."""
 
-import asyncio
-import os
 import subprocess
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Optional, Tuple
 
 from apex.llm.client import LLMClient
 

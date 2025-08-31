@@ -2,66 +2,27 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import random
 import tempfile
+import time
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 from apex.controller.bandit_v1 import BanditSwitchV1
-from apex.eval.stubs.topology_switch import TopologySwitch
 
 from .providers.swe_lite import SWELiteProvider, SWERecord
 from .repo_manager import RepoManager
 from .task import Task, TaskResult
 
-
-class StubTask:
-    """Stub task generator for fast deterministic testing."""
-
-    @staticmethod
-    def generate_stub_tasks() -> List[Task]:
-        """Generate deterministic stub tasks for testing.
-
-        Each task simulates different token costs and success patterns
-        across different topologies to ensure variance.
-
-        Note: In stub mode, 'expected_success' is a predetermined property
-        rather than an observed outcome. Real completion will be determined
-        by actual task execution in SWE-bench mode.
-
-        IMPORTANT: Do not mutate the process-global RNG here.
-        """
-        # No RNG seeding - task list is fully deterministic
-
-        tasks = [
-            # Lightweight planner tasks (prefer star)
-            Task("stub_plan_1", "Simple planning task", True, 2500, "star"),
-            Task("stub_plan_2", "Complex planning task", True, 4800, "star"),
-            Task("stub_plan_3", "Failed planning task", False, 3200, "star"),
-            # Chain tasks (prefer chain)
-            Task("stub_chain_1", "Sequential processing", True, 5500, "chain"),
-            Task("stub_chain_2", "Multi-step pipeline", True, 7200, "chain"),
-            Task("stub_chain_3", "Failed chain task", False, 6000, "chain"),
-            # Heavy compute tasks (prefer flat)
-            Task("stub_compute_1", "Parallel computation", True, 8500, "flat"),
-            Task("stub_compute_2", "Distributed work", True, 9800, "flat"),
-            Task("stub_compute_3", "Failed compute task", False, 9000, "flat"),
-            # Mixed tasks to test switching
-            Task("stub_mixed_1", "Adaptive workload", True, 6500, "chain"),
-            Task("stub_mixed_2", "Variable workload", True, 7500, "star"),
-            Task("stub_mixed_3", "Failed mixed task", False, 10500, "flat"),
-        ]
-
-        return tasks
-
+# StubTask class removed - only real SWE-bench tasks allowed
 
 class EvalHarness:
     """Main evaluation harness for Success@Budget metric."""
 
     def __init__(
         self,
-        mode: str = "stub",
         seed: int = 42,
         split: str = "dev",
         limit: Optional[int] = None,
@@ -69,18 +30,21 @@ class EvalHarness:
         oracle_smoke: bool = False,
         task_list: Optional[List[str]] = None,
     ):
-        """Initialize harness.
+        """Initialize harness for REAL SWE-bench evaluation only.
 
         Args:
-            mode: "stub" for fast CI testing, "swe" for SWE-bench Lite
             seed: Random seed for reproducibility
-            split: Dataset split for SWE mode ("dev" or "test")
+            split: Dataset split ("dev" or "test")
             limit: Optional limit on number of tasks
             offline: If True, only use local cache (no network)
             oracle_smoke: If True, apply gold patch for validation
             task_list: Optional list of task IDs to use (ensures consistent evaluation)
         """
-        self.mode = mode
+        # Configure logging
+        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+        self.logger = logging.getLogger(f"{__name__}.EvalHarness")
+        
+        # ONLY real SWE-bench mode allowed
         self.seed = seed
         self.split = split
         self.limit = limit
@@ -88,174 +52,143 @@ class EvalHarness:
         self.oracle_smoke = oracle_smoke
         self.task_list = task_list
         self.rng = random.Random(seed)  # Use instance RNG for determinism
-
-        if mode not in ["stub", "swe"]:
-            raise ValueError(f"Invalid mode: {mode}. Use 'stub' or 'swe'")
+        
+        self.logger.info(
+            f"[EVAL] Initializing harness: seed={seed}, split={split}, "
+            f"limit={limit}, offline={offline}, oracle={oracle_smoke}"
+        )
 
         # Network gating for SWE mode
-        if mode == "swe" and not offline:
+        if not offline:
             if os.getenv("APEX_ALLOW_NETWORK") != "1":
+                self.logger.error("[EVAL] Network access denied - APEX_ALLOW_NETWORK not set")
                 raise RuntimeError(
                     "SWE mode requires network access. "
                     "Set APEX_ALLOW_NETWORK=1 or use --offline with fixtures."
                 )
+            self.logger.info("[EVAL] Network access enabled for task loading")
 
-        # Initialize provider for SWE mode
-        if mode == "swe":
-            cache_dir = Path.home() / ".cache" / "apex" / "swe_bench"
-            self.provider = SWELiteProvider(cache_dir=str(cache_dir))
-            self.work_root = Path(tempfile.mkdtemp(prefix="apex_swe_"))
+        # Always initialize SWE provider (no stub mode)
+        cache_dir = Path.home() / ".cache" / "apex" / "swe_bench"
+        self.logger.info(f"[EVAL] SWE provider cache: {cache_dir}")
+        self.provider = SWELiteProvider(cache_dir=str(cache_dir))
+        # Use temp directory that will be cleaned up
+        self.work_root = Path(tempfile.mkdtemp(prefix="apex_swe_"))
+        self.logger.info(f"[EVAL] Work directory: {self.work_root}")
 
     def load_tasks(self, n_episodes: Optional[int] = None) -> List[Task]:
-        """Load tasks based on mode."""
-        if self.mode == "stub":
-            base_tasks = StubTask.generate_stub_tasks()
+        """Load REAL SWE-bench tasks only."""
+        # ONLY real SWE-bench tasks - no simulation allowed
+        start_time = time.time()
+        self.logger.info(
+            f"[EVAL] Loading tasks: n_episodes={n_episodes}, task_list={self.task_list}"
+        )
+        
+        # When task_list is provided, we need to load from ALL splits to find tasks
+        # This handles the case where we use test split IDs but run with --split dev
+        if self.task_list:
+            # Load both splits to find all task IDs
+            all_task_map = {}
 
-            # If task_list is provided, use it to filter/order tasks
-            if self.task_list:
-                filtered_tasks = []
-                # Create a mapping of base task IDs
-                task_map = {t.task_id: t for t in base_tasks}
-
-                for task_id in self.task_list:
-                    # Handle both base IDs and repetition suffixes
-                    if "__rep_" in task_id:
-                        base_id = task_id.split("__rep_")[0]
-                        if base_id in task_map:
-                            # Create a copy with the repetition suffix
-                            base_task = task_map[base_id]
-                            rep_task = Task(
-                                task_id=task_id,
-                                description=base_task.description,
-                                expected_success=base_task.expected_success,
-                                token_cost=base_task.token_cost,
-                                topology_preference=base_task.topology_preference,
-                                metadata=base_task.metadata,
-                            )
-                            filtered_tasks.append(rep_task)
-                    elif task_id in task_map:
-                        filtered_tasks.append(task_map[task_id])
-                    else:
-                        print(f"Warning: Task {task_id} not found in base tasks")
-
-                return filtered_tasks[:n_episodes] if n_episodes else filtered_tasks
-
-            # Original logic when no task_list is provided
-            if n_episodes and n_episodes > len(base_tasks):
-                # Extend with uniquely suffixed task IDs
-                tasks = []
-                rep = 0
-                while len(tasks) < n_episodes:
-                    for task in base_tasks:
-                        if len(tasks) >= n_episodes:
-                            break
-                        # Ensure per-episode unique identifiers when repeating the base set
-                        new_id = task.task_id if rep == 0 else f"{task.task_id}__rep_{rep}"
-                        unique_task = Task(
-                            task_id=new_id,
-                            description=task.description,
-                            expected_success=task.expected_success,
-                            token_cost=task.token_cost,
-                            topology_preference=task.topology_preference,
-                            metadata=task.metadata,
-                        )
-                        tasks.append(unique_task)
-                    rep += 1
-                return tasks[:n_episodes]
-            else:
-                return base_tasks[:n_episodes] if n_episodes else base_tasks
-        elif self.mode == "swe":
-            # When task_list is provided, we need to load from ALL splits to find tasks
-            # This handles the case where we use test split IDs but run with --split dev
-            if self.task_list:
-                # Load both splits to find all task IDs
-                all_task_map = {}
-
-                # Try test split first (300 tasks)
-                try:
-                    test_records = self.provider.load(
-                        split="test", limit=None, offline=self.offline
-                    )
-                    for record in test_records:
-                        task = Task(
-                            task_id=record.task_id,
-                            description=record.problem_statement[:200],
-                            expected_success=None,
-                            token_cost=0,
-                            topology_preference="star",
-                            metadata={
-                                "swe_record": record,
-                                "repo": record.repo,
-                                "base_commit": record.base_commit[:8],
-                            },
-                        )
-                        all_task_map[record.task_id] = task
-                except Exception as e:
-                    print(f"Warning: Could not load test split: {e}")
-
-                # Also try dev split (23 tasks)
-                try:
-                    dev_records = self.provider.load(split="dev", limit=None, offline=self.offline)
-                    for record in dev_records:
-                        task = Task(
-                            task_id=record.task_id,
-                            description=record.problem_statement[:200],
-                            expected_success=None,
-                            token_cost=0,
-                            topology_preference="star",
-                            metadata={
-                                "swe_record": record,
-                                "repo": record.repo,
-                                "base_commit": record.base_commit[:8],
-                            },
-                        )
-                        all_task_map[record.task_id] = task
-                except Exception as e:
-                    print(f"Warning: Could not load dev split: {e}")
-
-                # Filter by task_list
-                filtered_tasks = []
-                for task_id in self.task_list:
-                    if task_id in all_task_map:
-                        filtered_tasks.append(all_task_map[task_id])
-                    else:
-                        print(f"Warning: Task {task_id} not found in any SWE split")
-                return filtered_tasks
-
-            # Original behavior when no task_list provided
-            limit = n_episodes or self.limit
-            swe_records = self.provider.load(split=self.split, limit=limit, offline=self.offline)
-
-            # Convert SWERecords to Tasks
-            all_tasks = []
-            task_map = {}
-            for record in swe_records:
-                # Create Task with SWE metadata
-                task = Task(
-                    task_id=record.task_id,
-                    description=record.problem_statement[:200],  # Truncate for display
-                    expected_success=None,  # Will be determined by test execution
-                    token_cost=0,  # Will be measured during execution
-                    topology_preference="star",  # Default preference
-                    metadata={
-                        "swe_record": record,  # Store full record for execution
-                        "repo": record.repo,
-                        "base_commit": record.base_commit[:8],
-                    },
+            # Try test split first (300 tasks)
+            try:
+                self.logger.info("[EVAL] Loading test split for task lookup")
+                test_records = self.provider.load(
+                    split="test", limit=None, offline=self.offline
                 )
-                all_tasks.append(task)
-                task_map[record.task_id] = task
+                self.logger.info(f"[EVAL] Found {len(test_records)} tasks in test split")
+                for record in test_records:
+                    task = Task(
+                        task_id=record.task_id,
+                        description=record.problem_statement[:200],
+                        expected_success=None,
+                        token_cost=0,
+                        topology_preference="star",
+                        metadata={
+                            "swe_record": record,
+                            "repo": record.repo,
+                            "base_commit": record.base_commit[:8],
+                        },
+                    )
+                    all_task_map[record.task_id] = task
+            except Exception as e:
+                self.logger.warning(f"[EVAL] Could not load test split: {e}")
 
-            return all_tasks
-        else:
-            raise ValueError(f"Unknown mode: {self.mode}")
+            # Also try dev split (23 tasks)
+            try:
+                self.logger.info("[EVAL] Loading dev split for task lookup")
+                dev_records = self.provider.load(split="dev", limit=None, offline=self.offline)
+                self.logger.info(f"[EVAL] Found {len(dev_records)} tasks in dev split")
+                for record in dev_records:
+                    task = Task(
+                        task_id=record.task_id,
+                        description=record.problem_statement[:200],
+                        expected_success=None,
+                        token_cost=0,
+                        topology_preference="star",
+                        metadata={
+                            "swe_record": record,
+                            "repo": record.repo,
+                            "base_commit": record.base_commit[:8],
+                        },
+                    )
+                    all_task_map[record.task_id] = task
+            except Exception as e:
+                self.logger.warning(f"[EVAL] Could not load dev split: {e}")
+
+            # Filter by task_list
+            filtered_tasks = []
+            for task_id in self.task_list:
+                if task_id in all_task_map:
+                    filtered_tasks.append(all_task_map[task_id])
+                    self.logger.debug(f"[EVAL] Found task {task_id} in splits")
+                else:
+                    self.logger.warning(f"[EVAL] Task {task_id} not found in any SWE split")
+            
+            load_time = time.time() - start_time
+            self.logger.info(
+                f"[EVAL] Task loading completed: {len(filtered_tasks)} tasks in {load_time:.2f}s"
+            )
+            return filtered_tasks
+
+        # Original behavior when no task_list provided
+        limit = n_episodes or self.limit
+        self.logger.info(f"[EVAL] Loading {self.split} split: limit={limit}")
+        swe_records = self.provider.load(split=self.split, limit=limit, offline=self.offline)
+        self.logger.info(f"[EVAL] Loaded {len(swe_records)} SWE records")
+
+        # Convert SWERecords to Tasks
+        all_tasks = []
+        task_map = {}
+        for record in swe_records:
+            # Create Task with SWE metadata
+            task = Task(
+                task_id=record.task_id,
+                description=record.problem_statement[:200],  # Truncate for display
+                expected_success=None,  # Will be determined by test execution
+                token_cost=0,  # Will be measured during execution
+                topology_preference="star",  # Default preference
+                metadata={
+                    "swe_record": record,  # Store full record for execution
+                    "repo": record.repo,
+                    "base_commit": record.base_commit[:8],
+                },
+            )
+            all_tasks.append(task)
+            task_map[record.task_id] = task
+
+        load_time = time.time() - start_time
+        self.logger.info(
+            f"[EVAL] Task conversion completed: {len(all_tasks)} tasks in {load_time:.2f}s"
+        )
+        return all_tasks
 
     def run_episode(
         self,
         task: Task,
         policy: str,
         budget: int,
-        switch: Optional[TopologySwitch] = None,
+        switch: Optional[Any] = None,
         bandit: Optional[BanditSwitchV1] = None,
     ) -> TaskResult:
         """Run a single episode with budget enforcement.
@@ -270,36 +203,36 @@ class EvalHarness:
         Returns:
             TaskResult with success/failure and token usage
         """
+        episode_start = time.time()
+        self.logger.info(
+            f"[EVAL] Starting episode: task={task.task_id}, policy={policy}, budget={budget}"
+        )
+        
         epoch_switches = 0
 
-        # Handle SWE mode differently
-        if self.mode == "swe":
-            # Run actual SWE-bench task
-            if "swe_record" not in task.metadata:
-                raise ValueError(f"Task {task.task_id} missing SWE record in metadata")
+        # Run actual SWE-bench task - NO SIMULATION
+        if "swe_record" not in task.metadata:
+            self.logger.error(f"[EVAL] Task {task.task_id} missing SWE record metadata")
+            raise ValueError(f"Task {task.task_id} missing SWE record in metadata")
 
-            swe_record = task.metadata["swe_record"]
-            success, tokens_used = self._run_swe_episode(swe_record, budget)
+        swe_record = task.metadata["swe_record"]
+        self.logger.info(
+            f"[EVAL] Running SWE episode: repo={swe_record.repo}, "
+            f"base_commit={swe_record.base_commit[:8]}"
+        )
+        success, tokens_used = self._run_swe_episode(swe_record, budget)
 
-            # For SWE mode, success is determined by test execution
-            task.expected_success = success
-        else:
-            # Simulate task execution based on policy (stub mode)
-            if policy.startswith("static_"):
-                topology = policy.replace("static_", "")
-                tokens_used = self._simulate_static_execution(task, topology)
-            elif policy == "bandit_v1":
-                if switch is None:
-                    # Create default switch for bandit
-                    switch = TopologySwitch(initial="star", seed=self.seed)
-                if bandit is None:
-                    bandit = BanditSwitchV1(d=8, seed=self.seed)
-                tokens_used, epoch_switches = self._simulate_dynamic_execution(task, switch, bandit)
-            else:
-                raise ValueError(f"Unknown policy: {policy}")
+        # Success is determined by test execution
+        task.expected_success = success
 
         # Check budget violation
         over_budget = tokens_used > budget
+        episode_time = time.time() - episode_start
+        
+        self.logger.info(
+            f"[EVAL] Episode completed: success={success}, tokens={tokens_used}/{budget}, "
+            f"over_budget={over_budget}, time={episode_time:.2f}s"
+        )
 
         # Success@Budget: task succeeds only if completed AND under budget
         success = task.expected_success and not over_budget
@@ -313,85 +246,9 @@ class EvalHarness:
             budget=budget,
             seed=self.seed,
             epoch_switches=epoch_switches,
-            notes=f"mode={self.mode},topology_pref={task.topology_preference}",
+            notes=f"topology_pref={task.topology_preference}",
         )
 
-    def _simulate_static_execution(self, task: Task, topology: str) -> int:
-        """Simulate execution with static topology.
-
-        Returns token cost based on topology match.
-        """
-        base_cost = task.token_cost
-
-        # Add penalty if topology doesn't match preference
-        if topology != task.topology_preference:
-            # Wrong topology adds 15-25% overhead
-            penalty = self.rng.uniform(0.15, 0.25)
-            base_cost = int(base_cost * (1 + penalty))
-
-        # Add small random variance (±5%)
-        variance = self.rng.uniform(-0.05, 0.05)
-        final_cost = int(base_cost * (1 + variance))
-
-        return final_cost
-
-    def _simulate_dynamic_execution(
-        self, task: Task, switch: TopologySwitch, bandit: BanditSwitchV1
-    ) -> Tuple[int, int]:
-        """Simulate execution with dynamic topology switching.
-
-        Returns (tokens_used, epoch_switches).
-        """
-        # Simulate multiple steps with potential switches
-        total_tokens = 0
-        epoch_switches = 0
-        steps = self.rng.randint(3, 7)  # Variable number of steps
-
-        for step in range(steps):
-            # Get current topology
-            active_topo = switch.active()
-
-            # Compute step cost based on topology match
-            step_ratio = (step + 1) / steps
-            step_cost = int(task.token_cost * step_ratio / steps)
-
-            if active_topo.topology != task.topology_preference:
-                # Wrong topology adds overhead
-                penalty = self.rng.uniform(0.10, 0.20)
-                step_cost = int(step_cost * (1 + penalty))
-
-            total_tokens += step_cost
-
-            # Simulate bandit update and potential switch
-            if step < steps - 1:  # Don't switch on last step
-                # Simulate reward signal
-                reward = 1.0 if active_topo.topology == task.topology_preference else 0.3
-
-                # Bandit may switch based on reward
-                old_epoch = active_topo.epoch
-
-                # Create simple feature vector for bandit
-                x = [0.5] * 8  # Simple 8-feature vector
-                action = bandit.decide(x)["action"]
-                bandit.update(x, action, reward)
-
-                # Apply action to switch if needed
-                # Match ACTION_MAP from bandit_v1.py: {0: "stay", 1: "star", 2: "chain", 3: "flat"}
-                action_map = {0: "stay", 1: "star", 2: "chain", 3: "flat"}
-                if action != 0:  # Not "stay"
-                    switch.commit(action_map[action])
-
-                new_topo = switch.active()
-
-                if new_topo.epoch != old_epoch:
-                    epoch_switches += 1
-
-        # Dynamic policy can achieve 5-10% savings when it adapts well
-        if epoch_switches > 0:
-            savings = self.rng.uniform(0.05, 0.10)
-            total_tokens = int(total_tokens * (1 - savings))
-
-        return total_tokens, epoch_switches
 
     def _run_swe_episode(self, record: SWERecord, budget_tokens: int) -> Tuple[bool, int]:
         """Run a SWE-bench episode with actual repository and tests.
@@ -403,6 +260,11 @@ class EvalHarness:
         Returns:
             (success, tokens_used) tuple
         """
+        swe_start = time.time()
+        self.logger.info(
+            f"[EVAL] SWE episode start: task_id={record.task_id}, oracle={self.oracle_smoke}"
+        )
+        
         try:
             # Prepare workspace with repository at base commit
             repo_path = RepoManager.prepare_workspace(
@@ -413,6 +275,7 @@ class EvalHarness:
 
             # If in oracle mode, just run tests (gold patch already applied)
             if self.oracle_smoke:
+                self.logger.info("[EVAL] Oracle mode: running validation tests only")
                 test_result = RepoManager.run_tests(
                     repo_path=repo_path,
                     test_select=record.fail_to_pass if record.fail_to_pass else None,
@@ -420,13 +283,19 @@ class EvalHarness:
                 )
                 success = test_result["exit_code"] == 0 and test_result["failed"] == 0
                 tokens_used = int(test_result["duration_s"] * 100) + 1000
+                self.logger.info(
+                    f"[EVAL] Oracle result: success={success}, "
+                    f"test_duration={test_result['duration_s']:.2f}s"
+                )
                 return success, tokens_used
             
             # NEW: Use improved SWE agent V2 to attempt solving the task
             try:
+                self.logger.info("[EVAL] Loading SWE Agent V2")
                 from apex.agents.swe_agent_v2 import SWEAgentV2
             except ImportError:
                 # Fall back to V1 if V2 not available
+                self.logger.warning("[EVAL] SWE Agent V2 not available, falling back to V1")
                 from apex.agents.swe_agent import SWEAgent as SWEAgentV2
             
             # Check if LLM client is available
@@ -434,14 +303,41 @@ class EvalHarness:
             if llm_client is None:
                 # Try to create one if not provided
                 try:
-                    from apex.llm.client import LLMClient
                     import asyncio
-                    llm_client = LLMClient()
-                    # Ensure LLM is started
+
+                    from apex.config.swe_config import get_swe_config
+                    from apex.llm.client import LLMClient, LLMConfig
+                    from apex.utils.memory_monitor import check_memory_for_llm, log_memory_status
+                    
+                    # Use SWE-optimized config
+                    swe_cfg = get_swe_config()
+                    
+                    # Check memory before starting
+                    log_memory_status("[SWE] Before LLM start: ")
+                    can_start, msg = check_memory_for_llm(
+                        num_instances=swe_cfg['num_instances'],
+                        gb_per_instance=swe_cfg['max_memory_per_instance_gb']
+                    )
+                    
+                    if not can_start:
+                        print(f"[SWE] {msg}")
+                        raise RuntimeError("Insufficient memory for LLM")
+                    
+                    print(f"[SWE] {msg}")
+                    
+                    # Create LLM with SWE config
+                    llm_config = LLMConfig(
+                        num_instances=swe_cfg['num_instances'],
+                        timeout_s=swe_cfg['timeout_s']
+                    )
+                    llm_client = LLMClient(llm_config)
+                    
+                    # Start with timeout
                     asyncio.run(llm_client.ensure_started())
                 except Exception as e:
-                    print(f"Warning: Could not create LLM client: {e}")
+                    self.logger.warning(f"[EVAL] Could not create LLM client: {e}")
                     # Fall back to old behavior
+                    self.logger.info("[EVAL] Falling back to test-only mode")
                     test_result = RepoManager.run_tests(
                         repo_path=repo_path,
                         test_select=record.fail_to_pass if record.fail_to_pass else None,
@@ -453,9 +349,11 @@ class EvalHarness:
             
             # Create V2 agent with improved prompts and error handling
             agent = SWEAgentV2(llm_client=llm_client)
+            self.logger.info("[EVAL] Created agent, starting solve task")
             
             # Run agent asynchronously
             import asyncio
+            agent_start = time.time()
             success, tokens_used = asyncio.run(
                 agent.solve_task(
                     problem_statement=record.problem_statement,
@@ -464,24 +362,44 @@ class EvalHarness:
                     budget=budget_tokens
                 )
             )
+            agent_time = time.time() - agent_start
+            self.logger.info(
+                f"[EVAL] Agent completed: success={success}, tokens={tokens_used}, "
+                f"time={agent_time:.2f}s"
+            )
             
             # If agent claims success, verify with actual test run
             if success:
+                self.logger.info("[EVAL] Agent claims success, verifying with tests")
+                verify_start = time.time()
                 test_result = RepoManager.run_tests(
                     repo_path=repo_path,
                     test_select=record.fail_to_pass if record.fail_to_pass else None,
                     timeout_s=180,
                 )
+                verify_time = time.time() - verify_start
                 success = test_result["exit_code"] == 0 and test_result["failed"] == 0
+                self.logger.info(
+                    f"[EVAL] Verification: passed={test_result.get('passed', 0)}, "
+                    f"failed={test_result.get('failed', 0)}, exit_code={test_result['exit_code']}, "
+                    f"time={verify_time:.2f}s"
+                )
+                self.logger.info(f"[EVAL] Final task success: {success}")
             
             return success, tokens_used
 
         except Exception as e:
             # Log error and treat as failure
-            print(f"Error in SWE episode {record.task_id}: {e}")
+            swe_time = time.time() - swe_start
+            self.logger.error(
+                f"[EVAL] SWE episode error: task={record.task_id}, error={e}, "
+                f"time={swe_time:.2f}s"
+            )
             return False, budget_tokens  # Use full budget on error
 
     def cleanup(self):
         """Clean up workspace after evaluation."""
         if hasattr(self, "work_root") and self.work_root.exists():
+            self.logger.info(f"[EVAL] Cleaning up workspace: {self.work_root}")
             RepoManager.cleanup_workspace(str(self.work_root))
+            self.logger.info("[EVAL] Cleanup completed")

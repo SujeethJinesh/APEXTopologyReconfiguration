@@ -12,9 +12,12 @@ from pathlib import Path
 # Add parent to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from apex.controller.bandit_v1 import BanditSwitchV1
+# Always enable LLM and network for evaluations
+os.environ["APEX_ALLOW_LLM"] = "1"
+os.environ["APEX_ALLOW_NETWORK"] = "1"
+
 from apex.eval.harness import EvalHarness
-from apex.eval.stubs.topology_switch import TopologySwitch
+# Note: Dynamic topology switching removed - only static topologies supported
 
 
 def main():
@@ -23,7 +26,7 @@ def main():
     parser.add_argument("--budget", type=int, default=32000, help="Token budget per episode")
     parser.add_argument(
         "--policy",
-        choices=["static_star", "static_chain", "static_flat", "bandit_v1"],
+        choices=["static_star", "static_chain", "static_flat"],
         required=True,
         help="Policy to evaluate"
     )
@@ -143,7 +146,6 @@ def main():
     
     # Initialize harness
     harness = EvalHarness(
-        mode=args.mode,
         seed=args.seed,
         split=args.split,
         limit=args.limit,
@@ -172,12 +174,7 @@ def main():
     else:
         tasks = harness.load_tasks(n_episodes=args.episodes)
     
-    # Setup switch and bandit for dynamic policy
-    switch = None
-    bandit = None
-    if args.policy == "bandit_v1":
-        switch = TopologySwitch(initial="star", seed=args.seed)
-        bandit = BanditSwitchV1(d=8, seed=args.seed)
+    # Static policies only - no dynamic switching
     
     # Run episodes and collect results
     results = []
@@ -186,8 +183,6 @@ def main():
             task=task,
             policy=args.policy,
             budget=args.budget,
-            switch=switch,
-            bandit=bandit
         )
         results.append(result)
     
@@ -211,10 +206,6 @@ def main():
     print(f"Successes: {successes}/{total} ({100*successes/total:.1f}%)")
     print(f"Over budget: {over_budget}/{total} ({100*over_budget/total:.1f}%)")
     print(f"Avg tokens: {avg_tokens:.0f}")
-    
-    if args.policy == "bandit_v1":
-        total_switches = sum(r.epoch_switches for r in results)
-        print(f"Total epoch switches: {total_switches}")
     
     print(f"Output written to: {output_path}")
     

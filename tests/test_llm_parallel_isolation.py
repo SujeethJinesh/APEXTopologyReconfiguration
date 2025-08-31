@@ -5,9 +5,7 @@ import os
 
 import pytest
 
-# Set stub mode for CI
-os.environ["APEX_LLM_STUB"] = "1"
-
+# CI-safe test (uses mocked responses if APEX_ALLOW_LLM not set)
 from apex.llm.client import PortableLLMClient
 
 
@@ -223,8 +221,8 @@ class TestRealModelIsolation:
 
     async def test_real_parallel_isolation(self):
         """Test real model parallel isolation (requires APEX_GGUF_MODEL_PATH)."""
-        if os.getenv("APEX_LLM_STUB") == "1":
-            pytest.skip("Requires real model")
+        if not os.getenv("APEX_ALLOW_LLM"):
+            pytest.skip("Requires real model - set APEX_ALLOW_LLM=1")
 
         if not os.getenv("APEX_GGUF_MODEL_PATH"):
             pytest.skip("APEX_GGUF_MODEL_PATH not set")

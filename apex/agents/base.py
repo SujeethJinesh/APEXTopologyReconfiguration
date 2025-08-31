@@ -6,7 +6,6 @@ from uuid import uuid4
 
 from apex.integrations.llm.client_api import LLM
 from apex.integrations.mcp.fs_api import FS
-from apex.integrations.mcp.test_api import Test
 from apex.runtime.message import AgentID, Message
 from apex.runtime.router_api import IRouter
 from apex.runtime.switch_api import ISwitchEngine
@@ -21,7 +20,6 @@ class BaseAgent:
         router: IRouter,
         switch: ISwitchEngine,
         fs: FS,
-        test: Test,
         episode_id: str,  # Required parameter for unified episode tracking
         llm: Optional[LLM] = None,
     ) -> None:
@@ -29,7 +27,6 @@ class BaseAgent:
         self.router = router
         self.switch = switch
         self.fs = fs
-        self.test = test
         self.episode_id = episode_id  # Use provided episode_id, not generated
         self.llm = llm
 

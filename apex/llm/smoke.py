@@ -24,7 +24,7 @@ async def smoke_test():
     print()
 
     # Note: If GGUF_MODEL_PATH is not set, the backend will auto-download
-    if not defaults.LLM_STUB_MODE and defaults.LLM_BACKEND == "llama_cpp_metal":
+    if os.getenv("APEX_ALLOW_LLM") and defaults.LLM_BACKEND == "llama_cpp_metal":
         if defaults.GGUF_MODEL_PATH and not os.path.exists(defaults.GGUF_MODEL_PATH):
             print("WARNING: APEX_GGUF_MODEL_PATH set but file doesn't exist")
             print(f"Path: {defaults.GGUF_MODEL_PATH}")
@@ -127,7 +127,6 @@ def main():
         print("  APEX_NUM_LLM_INSTANCES: Number of instances (default 5)")
         print("  APEX_GGUF_MODEL_PATH: Path to GGUF model (for llama_cpp_metal)")
         print("  APEX_HF_MODEL_ID: HuggingFace model ID (for hf_cuda)")
-        print("  APEX_LLM_STUB: Set to 1 for stub mode (no real model)")
         sys.exit(0)
 
     # Parse backend arg

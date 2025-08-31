@@ -52,9 +52,10 @@ class BanditSwitchV1:
             self.w[a] = np.zeros(d)  # A_inv @ b = 0 initially
 
         # Epsilon schedule parameters
-        self.epsilon_start = 0.20
-        self.epsilon_end = 0.05
-        self.epsilon_steps = 5000
+        # Aggressive exploration for comprehensive topology discovery
+        self.epsilon_start = 0.80  # High initial exploration to test all topologies
+        self.epsilon_end = 0.60    # Maintain high exploration throughout
+        self.epsilon_steps = 1000  # Faster adaptation for quick learning
 
         # Stats tracking
         self.decision_count = 0
@@ -111,7 +112,7 @@ class BanditSwitchV1:
         # Compute latency
         end_ns = time.monotonic_ns()
         ms = (end_ns - start_ns) / 1e6
-
+        
         return {"action": action, "epsilon": epsilon, "ms": ms}
 
     def update(self, x: list[float], action: int, reward: float) -> None:

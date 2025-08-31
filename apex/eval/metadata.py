@@ -1,8 +1,8 @@
 """Episode metadata helpers."""
 
-import platform
 import os
-from typing import Dict, Any
+import platform
+from typing import Any, Dict
 
 
 def get_episode_metadata() -> Dict[str, Any]:

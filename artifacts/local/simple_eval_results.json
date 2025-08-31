@@ -1,0 +1,79 @@
+{
+  "config": {
+    "n_tasks": 3,
+    "budget": 32000,
+    "seed": 42,
+    "timestamp": "2025-08-31T13:36:53.259047"
+  },
+  "results": {
+    "static_star": [
+      {
+        "task_id": "sqlfluff__sqlfluff-1625",
+        "policy": "static_star",
+        "success": false,
+        "tokens_used": 1157,
+        "time": 21.228489875793457
+      },
+      {
+        "task_id": "sqlfluff__sqlfluff-2419",
+        "policy": "static_star",
+        "success": false,
+        "tokens_used": 1154,
+        "time": 22.406514167785645
+      },
+      {
+        "task_id": "sqlfluff__sqlfluff-1733",
+        "policy": "static_star",
+        "success": false,
+        "tokens_used": 1119,
+        "time": 21.842010974884033
+      }
+    ],
+    "static_chain": [
+      {
+        "task_id": "sqlfluff__sqlfluff-1625",
+        "policy": "static_chain",
+        "success": false,
+        "tokens_used": 1149,
+        "time": 13.578628778457642
+      },
+      {
+        "task_id": "sqlfluff__sqlfluff-2419",
+        "policy": "static_chain",
+        "success": false,
+        "tokens_used": 1153,
+        "time": 13.615526914596558
+      },
+      {
+        "task_id": "sqlfluff__sqlfluff-1733",
+        "policy": "static_chain",
+        "success": false,
+        "tokens_used": 1123,
+        "time": 13.150706052780151
+      }
+    ],
+    "static_flat": [
+      {
+        "task_id": "sqlfluff__sqlfluff-1625",
+        "policy": "static_flat",
+        "success": false,
+        "tokens_used": 1150,
+        "time": 13.369073867797852
+      },
+      {
+        "task_id": "sqlfluff__sqlfluff-2419",
+        "policy": "static_flat",
+        "success": false,
+        "tokens_used": 1151,
+        "time": 13.593104124069214
+      },
+      {
+        "task_id": "sqlfluff__sqlfluff-1733",
+        "policy": "static_flat",
+        "success": false,
+        "tokens_used": 1118,
+        "time": 12.942857027053833
+      }
+    ]
+  }
+}

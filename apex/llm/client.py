@@ -18,10 +18,7 @@ logger = logging.getLogger(__name__)
 
 def _backend_factory(instance_id: int):
     """Factory function to create backend instances."""
-    if defaults.LLM_STUB_MODE:
-        # Return stub backend for testing
-        return StubBackend(instance_id=instance_id)
-    elif defaults.LLM_BACKEND == "llama_cpp_metal":
+    if defaults.LLM_BACKEND == "llama_cpp_metal":
         # Pass None for model_path if not set to trigger auto-download
         model_path = defaults.GGUF_MODEL_PATH if defaults.GGUF_MODEL_PATH else None
         return LlamaCppMetalBackend(
@@ -41,62 +38,6 @@ def _backend_factory(instance_id: int):
         raise RuntimeError(f"Unknown LLM_BACKEND={defaults.LLM_BACKEND}")
 
 
-class StubBackend:
-    """Stub backend for testing without real models."""
-
-    def __init__(self, instance_id: int):
-        self.instance_id = instance_id
-        self._ready = False
-
-    def start(self) -> None:
-        self._ready = True
-
-    def ready(self) -> bool:
-        return self._ready
-
-    def warmup(self, text: str = "Hello") -> None:
-        pass
-
-    def stop(self) -> None:
-        self._ready = False
-
-    def generate(
-        self,
-        *,
-        session_id: str,
-        prompt: str,
-        max_new_tokens: int,
-        temperature: float = 0.7,
-        top_p: float = 0.95,
-        stop: Optional[list] = None,
-        timeout_s: int = 120,
-    ) -> Dict[str, Any]:
-        """Generate mock response."""
-        # Simple mock responses based on keywords
-        content = "Mock response: "
-
-        if "plan" in prompt.lower():
-            content += "1. Analyze requirements\n2. Design solution\n3. Implement\n4. Test"
-        elif "code" in prompt.lower():
-            content += "```python\ndef solution():\n    return 'mock implementation'\n```"
-        elif "test" in prompt.lower():
-            content += "All tests passed successfully."
-        elif "error" in prompt.lower():
-            content += "Error analysis: Check line 42 for undefined variable."
-        else:
-            content += "Acknowledged. Processing request."
-
-        # Mock token counts
-        tokens_in = len(prompt) // 4
-        tokens_out = len(content) // 4
-
-        return {
-            "text": content,
-            "tokens_in": tokens_in,
-            "tokens_out": tokens_out,
-            "finish_reason": "stop",
-            "elapsed_s": 0.01,
-        }
 
 
 @dataclass
@@ -108,7 +49,6 @@ class LLMConfig:
     timeout_s: int = defaults.LLM_TIMEOUT_S
     max_tokens: int = 2048
     temperature: float = 0.7
-    mock_mode: bool = defaults.LLM_STUB_MODE
 
 
 @dataclass
@@ -199,8 +139,8 @@ class PortableLLMClient:
         self._started = False
 
         # Check if LLM is allowed (for CI safety)
-        if not os.environ.get("APEX_ALLOW_LLM") and not self.config.mock_mode:
-            self.config.mock_mode = True
+        self.mock_mode = not bool(os.environ.get("APEX_ALLOW_LLM"))
+        if self.mock_mode:
             logger.info("LLM disabled (APEX_ALLOW_LLM not set), using mock mode")
 
         # Log configuration on startup
@@ -212,7 +152,7 @@ class PortableLLMClient:
         logger.info(
             f"LLM Client initialized: backend={self.config.backend}, "
             f"model={model_info}, instances={self.config.num_instances}, "
-            f"mock_mode={self.config.mock_mode}"
+            f"mock_mode={self.mock_mode}"
         )
 
     async def ensure_started(self):
@@ -372,7 +312,7 @@ class PortableLLMClient:
         """
         return {
             "backend": self.config.backend,
-            "mock_mode": self.config.mock_mode,
+            "mock_mode": self.mock_mode,
             "num_instances": self.config.num_instances,
             "tokens_used": self.tracker.used,
             "tokens_remaining": self.tracker.remaining(),

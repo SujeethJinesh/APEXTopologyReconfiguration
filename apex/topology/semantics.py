@@ -203,7 +203,7 @@ class PhaseHeuristics:
             self.message_history.pop(0)
 
     def infer_phase(self) -> str:
-        """Infer current phase from message history.
+        """Infer current phase from message history with enhanced signals.
 
         Returns:
             Phase string (planning/implementation/debug)
@@ -211,31 +211,56 @@ class PhaseHeuristics:
         if len(self.message_history) == 0:
             return PHASE_PLANNING
 
-        # Simple heuristics based on message patterns
-        recent_agents = [msg.sender for msg in self.message_history[-3:]]
-        recent_recipients = [msg.recipient for msg in self.message_history[-3:]]
-
-        # If manager is sending to multiple workers, likely planning
-        manager_sends = sum(1 for a in recent_agents if "manager" in str(a))
-        if manager_sends >= 2:
+        # Enhanced phase detection with multiple signals
+        recent_msgs = self.message_history[-5:]  # Look at last 5 messages
+        recent_agents = [msg.sender for msg in recent_msgs]
+        recent_recipients = [msg.recipient for msg in recent_msgs]
+        
+        # Analyze message content for keywords (if available)
+        recent_payloads = [msg.payload for msg in recent_msgs if hasattr(msg, 'payload')]
+        
+        # Signal 1: Agent activity patterns
+        manager_activity = sum(1 for a in recent_agents if "manager" in str(a).lower())
+        planner_activity = sum(1 for a in recent_agents + recent_recipients if "planner" in str(a).lower())
+        coder_activity = sum(1 for a in recent_agents + recent_recipients if "coder" in str(a).lower())
+        runner_activity = sum(1 for a in recent_agents + recent_recipients if "runner" in str(a).lower())
+        critic_activity = sum(1 for a in recent_agents + recent_recipients if "critic" in str(a).lower())
+        
+        # Signal 2: Message flow patterns
+        broadcast_count = sum(1 for msg in recent_msgs if msg.recipient == "BROADCAST")
+        peer_to_peer = sum(1 for msg in recent_msgs if 
+                          "manager" not in str(msg.sender).lower() and 
+                          "manager" not in str(msg.recipient).lower())
+        
+        # Signal 3: Phase keywords in payloads
+        planning_keywords = sum(1 for p in recent_payloads if p and 
+                               any(k in str(p).lower() for k in ["plan", "strategy", "approach", "design"]))
+        impl_keywords = sum(1 for p in recent_payloads if p and 
+                           any(k in str(p).lower() for k in ["implement", "code", "write", "create"]))
+        debug_keywords = sum(1 for p in recent_payloads if p and 
+                            any(k in str(p).lower() for k in ["test", "debug", "fix", "error", "fail"]))
+        
+        # Enhanced decision logic with weighted signals
+        planning_score = manager_activity * 2 + planner_activity * 2 + broadcast_count + planning_keywords
+        impl_score = coder_activity * 2 + peer_to_peer + impl_keywords
+        debug_score = runner_activity * 2 + critic_activity * 2 + debug_keywords
+        
+        # Strong phase indicators
+        if planning_score >= 4 and planning_score > impl_score and planning_score > debug_score:
             return PHASE_PLANNING
-
-        # If workers are actively sending, likely implementation
-        worker_sends = sum(1 for a in recent_agents if "worker" in str(a) or "coder" in str(a))
-        if worker_sends >= 2:
-            return PHASE_IMPLEMENTATION
-
-        # If critic or runner involved, likely debug/test
-        debug_agents = sum(
-            1
-            for a in recent_agents + recent_recipients
-            if "critic" in str(a) or "runner" in str(a) or "test" in str(a)
-        )
-        if debug_agents >= 1:
+        elif debug_score >= 3 and debug_score >= impl_score:
             return PHASE_DEBUG
-
-        # Default to implementation
-        return PHASE_IMPLEMENTATION
+        elif impl_score >= 2:
+            return PHASE_IMPLEMENTATION
+        
+        # Fallback: Use message count as proxy for phase progression
+        total_msgs = len(self.message_history)
+        if total_msgs < 10:
+            return PHASE_PLANNING
+        elif total_msgs < 30:
+            return PHASE_IMPLEMENTATION
+        else:
+            return PHASE_DEBUG
 
 
 def create_topology(name: str, **kwargs) -> TopologySemantics:

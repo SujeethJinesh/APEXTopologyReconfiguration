@@ -7,8 +7,8 @@ import platform
 QUIESCE_DEADLINE_MS = 50
 DWELL_MIN_STEPS = 2
 COOLDOWN_STEPS = 2
-EPISODE_TOKEN_BUDGET = 10_000
-QUEUE_CAP_PER_AGENT = 10_000
+EPISODE_TOKEN_BUDGET = 10000
+QUEUE_CAP_PER_AGENT = 10000
 MESSAGE_TTL_S = 60
 MAX_ATTEMPTS = 5
 
@@ -49,8 +49,9 @@ else:
     )
     LLM_NUM_INSTANCES = APEX_NUM_LLM_INSTANCES
 
-# Context window size in tokens - guardrailed (increased for SWE tasks)
-APEX_LLM_CTX_TOKENS = min(16384, max(512, int(os.getenv("APEX_LLM_CTX_TOKENS", "8192"))))
+# Context window size in tokens - guardrailed (balanced for stability)
+# 6144 provides good balance between context and memory usage
+APEX_LLM_CTX_TOKENS = min(8192, max(512, int(os.getenv("APEX_LLM_CTX_TOKENS", "6144"))))
 LLM_CTX_TOKENS = APEX_LLM_CTX_TOKENS  # Alias
 
 # Per-request timeout in seconds - guardrailed
@@ -67,8 +68,8 @@ LLM_MODEL_ID = APEX_HF_MODEL_ID  # Alias
 APEX_GGUF_MODEL_PATH = os.getenv("APEX_GGUF_MODEL_PATH", "")
 GGUF_MODEL_PATH = APEX_GGUF_MODEL_PATH  # Alias
 
-# Stub mode for testing (no real model)
-LLM_STUB_MODE = os.getenv("APEX_LLM_STUB", "0") == "1"
+# Note: Mock mode is now automatically enabled when APEX_ALLOW_LLM is not set
+# This provides CI safety without requiring explicit stub mode
 
 # ===== Episode Configuration =====
 # Episode timeout in seconds (default 30 minutes) - guardrailed
