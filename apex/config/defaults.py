@@ -39,10 +39,15 @@ LLM_BACKEND = APEX_LLM_BACKEND  # Alias for compatibility
 # Number of parallel model instances (one per process) - guardrailed
 # Default to 3 on Mac to avoid swap storms with 64GB RAM
 DEFAULT_LLM_NUM_INSTANCES = 3 if platform.system() == "Darwin" else 5
-APEX_NUM_LLM_INSTANCES = min(
-    10, max(1, int(os.getenv("APEX_NUM_LLM_INSTANCES", str(DEFAULT_LLM_NUM_INSTANCES))))
-)
-LLM_NUM_INSTANCES = APEX_NUM_LLM_INSTANCES  # Alias
+# TEMPORARY: Force 3 instances on Mac to debug memory issues
+if platform.system() == "Darwin":
+    APEX_NUM_LLM_INSTANCES = 3
+    LLM_NUM_INSTANCES = 3
+else:
+    APEX_NUM_LLM_INSTANCES = min(
+        10, max(1, int(os.getenv("APEX_NUM_LLM_INSTANCES", str(DEFAULT_LLM_NUM_INSTANCES))))
+    )
+    LLM_NUM_INSTANCES = APEX_NUM_LLM_INSTANCES
 
 # Context window size in tokens - guardrailed
 APEX_LLM_CTX_TOKENS = min(8192, max(512, int(os.getenv("APEX_LLM_CTX_TOKENS", "4096"))))

@@ -156,8 +156,12 @@ def main():
     if args.eager_llm_start and args.mode != "stub":
         print("Starting and warming up LLM workers...")
         import asyncio
-        from apex.llm.client import PortableLLMClient
-        llm_client = PortableLLMClient()
+        from apex.llm.client import PortableLLMClient, LLMConfig
+        from apex.config import defaults
+        print(f"DEBUG: defaults.LLM_NUM_INSTANCES = {defaults.LLM_NUM_INSTANCES}")
+        config = LLMConfig()
+        print(f"DEBUG: LLMConfig.num_instances = {config.num_instances}")
+        llm_client = PortableLLMClient(config)
         asyncio.run(llm_client.warmup_all("warmup", 1))
         print("LLM workers ready")
     
