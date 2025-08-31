@@ -60,13 +60,15 @@ def _generate_text(
 ) -> Dict[str, Any]:
     """Generate text using this worker's backend."""
     import os
+    import time
+    import json
+    import platform
+    import resource
     
     # Get memory info using resource module
     try:
-        import resource
         usage = resource.getrusage(resource.RUSAGE_SELF)
         # maxrss is in KB on Linux, bytes on Mac
-        import platform
         if platform.system() == "Darwin":
             rss_bytes = usage.ru_maxrss  # Already in bytes on Mac
         else:
@@ -74,6 +76,47 @@ def _generate_text(
         mem_dict = {"rss": rss_bytes, "vms": 0}
     except:
         mem_dict = {"rss": 0, "vms": 0}
+    
+    # Log first generate stats per worker
+    global _FIRST_GENERATE_LOGGED
+    if not globals().get('_FIRST_GENERATE_LOGGED', False) and _BACKEND is not None:
+        _FIRST_GENERATE_LOGGED = True
+        
+        # Capture before stats
+        r0 = resource.getrusage(resource.RUSAGE_SELF)
+        t0 = time.perf_counter()
+        
+        # Do a small warmup generation to fault in pages
+        warmup_result = _BACKEND.generate(
+            session_id="warmup_probe",
+            prompt="Say hello in 10 words",
+            max_new_tokens=64,
+            temperature=0.7,
+            top_p=0.95,
+            stop=None,
+            timeout_s=30,
+        )
+        
+        # Capture after stats
+        r1 = resource.getrusage(resource.RUSAGE_SELF)
+        t1 = time.perf_counter()
+        
+        # Emit stats
+        stats = {
+            "event": "LLM_FIRST_GENERATE_STATS",
+            "pid": os.getpid(),
+            "instance_id": _WORKER_ID,
+            "ru_maxrss_bytes_before": int(r0.ru_maxrss if platform.system() == "Darwin" else r0.ru_maxrss * 1024),
+            "ru_maxrss_bytes_after": int(r1.ru_maxrss if platform.system() == "Darwin" else r1.ru_maxrss * 1024),
+            "delta_tokens": warmup_result.get("tokens_out", 0),
+            "elapsed_s": t1 - t0,
+        }
+        
+        # Add backend info if available
+        if hasattr(_BACKEND, 'info'):
+            stats["backend_info"] = _BACKEND.info()
+        
+        print(f"[LLM_FIRST_GENERATE_STATS] {json.dumps(stats)}")
     
     if _BACKEND is None:
         return {

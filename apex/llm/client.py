@@ -399,6 +399,8 @@ class PortableLLMClient:
         print(f"[LLM/WARMUP] Starting warmup with {max_tokens} tokens per worker...")
         
         # Run warmup generation on each worker
+        import time
+        start_time = time.time()
         tasks = []
         for i in range(self.config.num_instances):
             agent_id = f"warmup_{i}"
@@ -406,12 +408,38 @@ class PortableLLMClient:
         
         results = await asyncio.gather(*tasks)
         
-        # Log warmup completion with backend info
-        for i, r in enumerate(results):
-            if hasattr(r, 'content'):
-                print(f"[LLM/WARMUP/DONE] Worker {i}: generated {r.tokens_used} tokens")
-            else:
-                print(f"[LLM/WARMUP/DONE] Worker {i}: {r}")
+        # Write warmup results to JSONL
+        import json
+        from pathlib import Path
+        warmup_log_path = Path("artifacts/local/llm_warmup.jsonl")
+        warmup_log_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        with open(warmup_log_path, "a") as f:
+            for i, r in enumerate(results):
+                warmup_record = {
+                    "event": "LLM_WARMUP",
+                    "worker_index": i,
+                    "tokens_generated": r.tokens_used if hasattr(r, 'tokens_used') else 0,
+                    "elapsed_ms": int((time.time() - start_time) * 1000),
+                    "timestamp": time.time(),
+                }
+                
+                # Add backend info if available
+                if hasattr(r, 'backend_info') and r.backend_info:
+                    warmup_record.update({
+                        "pid": r.backend_info.get("pid"),
+                        "instance_id": r.backend_info.get("instance_id"),
+                        "model_path": r.backend_info.get("model_path"),
+                        "model_size_bytes": r.backend_info.get("model_size_bytes"),
+                    })
+                
+                f.write(json.dumps(warmup_record) + "\n")
+                
+                # Also print to console
+                if hasattr(r, 'content'):
+                    print(f"[LLM/WARMUP/DONE] Worker {i}: generated {r.tokens_used} tokens")
+                else:
+                    print(f"[LLM/WARMUP/DONE] Worker {i}: {r}")
 
 
 # Keep old class names for compatibility
