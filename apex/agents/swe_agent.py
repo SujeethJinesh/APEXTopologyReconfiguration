@@ -135,7 +135,7 @@ Output ONLY the complete fixed code, no explanations."""
         for word in words:
             if '.py' in word:
                 # Clean up the word
-                filename = word.strip('.,;:()[]{}"\\'')
+                filename = word.strip('.,;:()[]{}"\'')  # Fixed escaping
                 if filename.endswith('.py'):
                     # Try to find this file
                     for p in repo_path.rglob(filename):
