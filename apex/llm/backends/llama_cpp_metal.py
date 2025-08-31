@@ -41,11 +41,31 @@ class LlamaCppMetalBackend:
         if model_path is None:
             model_path = ensure_gguf()
         self.model_path = model_path
+        
+        # Hard-fail if model file doesn't exist
+        if not os.path.isfile(self.model_path):
+            raise RuntimeError(
+                f"[LLM/Metal] GGUF not found: {self.model_path}. "
+                f"Set APEX_GGUF_MODEL_PATH or enable APEX_ALLOW_NETWORK=1 to auto-fetch."
+            )
+        
         self.n_ctx = n_ctx
         self.n_gpu_layers = n_gpu_layers
         self.n_threads = n_threads
         self.seed = seed
         self._llm = None
+        
+        # Store model info for verification
+        self._info = {
+            "backend": "llama_cpp_metal",
+            "model_path": str(self.model_path),
+            "model_size_bytes": os.path.getsize(self.model_path),
+            "n_gpu_layers": n_gpu_layers,
+            "n_batch": 128,  # Will be set in start()
+            "n_ctx": n_ctx,
+            "use_mmap": True,  # llama.cpp default
+            "use_mlock": False,  # default
+        }
 
         # Set up per-process cache directory
         if cache_dir:
@@ -76,6 +96,10 @@ class LlamaCppMetalBackend:
             vocab_only=False,
             verbose=False,
         )
+        
+        # Log successful model load
+        import json
+        print(f"[LLM/Metal/READY] {json.dumps(self._info)}")
 
     def ready(self) -> bool:
         """Check if model is loaded."""
@@ -89,6 +113,10 @@ class LlamaCppMetalBackend:
     def stop(self) -> None:
         """Unload the model."""
         self._llm = None
+    
+    def info(self) -> dict:
+        """Return backend info for verification."""
+        return self._info.copy()
 
     def estimate_tokens(self, prompt: str, max_new_tokens: int) -> int:
         """Estimate total tokens using the actual tokenizer.

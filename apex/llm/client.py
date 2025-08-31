@@ -28,7 +28,8 @@ def _backend_factory(instance_id: int):
             instance_id=instance_id,
             model_path=model_path,
             n_ctx=defaults.LLM_CTX_TOKENS,
-            n_gpu_layers=-1,  # Offload all to Metal
+            # Use conservative setting for multiple workers
+            n_gpu_layers=18,  # Conservative for 3 workers on 64GB Mac
         )
     elif defaults.LLM_BACKEND == "hf_cuda":
         return HFCudaBitsBackend(
@@ -120,6 +121,7 @@ class LLMResponse:
     model: str
     error: Optional[str] = None
     status: Optional[str] = None  # "budget_denied" or None
+    backend_info: Optional[Dict[str, Any]] = None  # Backend metadata
 
 
 class TokenTracker:
@@ -327,6 +329,7 @@ class PortableLLMClient:
                 elapsed_seconds=time.time() - start_time,
                 model=self.config.backend,
                 error=result.get("error"),
+                backend_info=result.get("backend_info"),
             )
 
         except Exception as e:
@@ -383,15 +386,32 @@ class PortableLLMClient:
             self._mgr.shutdown()
             self._started = False
 
-    async def warmup_all(self, prompt: str = "Hello", max_tokens: int = 1) -> None:
-        """Warmup all workers with a small generation."""
+    async def warmup_all(self, prompt: str = None, max_tokens: int = None) -> None:
+        """Warmup all workers with meaningful token generation to fault pages in."""
         await self.ensure_started()
-        # Run one small generation per worker
+        
+        # Ensure each instance does real work to fault pages in
+        if prompt is None:
+            prompt = "Say OK and a 4-word sentence about warmup."
+        if max_tokens is None:
+            max_tokens = int(os.getenv("APEX_WARMUP_TOKENS", "128"))  # Default 128 tokens
+        
+        print(f"[LLM/WARMUP] Starting warmup with {max_tokens} tokens per worker...")
+        
+        # Run warmup generation on each worker
         tasks = []
         for i in range(self.config.num_instances):
             agent_id = f"warmup_{i}"
             tasks.append(self.complete(prompt, max_tokens=max_tokens, agent_id=agent_id))
-        await asyncio.gather(*tasks)
+        
+        results = await asyncio.gather(*tasks)
+        
+        # Log warmup completion with backend info
+        for i, r in enumerate(results):
+            if hasattr(r, 'content'):
+                print(f"[LLM/WARMUP/DONE] Worker {i}: generated {r.tokens_used} tokens")
+            else:
+                print(f"[LLM/WARMUP/DONE] Worker {i}: {r}")
 
 
 # Keep old class names for compatibility

@@ -60,6 +60,21 @@ def _generate_text(
 ) -> Dict[str, Any]:
     """Generate text using this worker's backend."""
     import os
+    
+    # Get memory info using resource module
+    try:
+        import resource
+        usage = resource.getrusage(resource.RUSAGE_SELF)
+        # maxrss is in KB on Linux, bytes on Mac
+        import platform
+        if platform.system() == "Darwin":
+            rss_bytes = usage.ru_maxrss  # Already in bytes on Mac
+        else:
+            rss_bytes = usage.ru_maxrss * 1024  # Convert KB to bytes on Linux
+        mem_dict = {"rss": rss_bytes, "vms": 0}
+    except:
+        mem_dict = {"rss": 0, "vms": 0}
+    
     if _BACKEND is None:
         return {
             "text": "",
@@ -69,7 +84,9 @@ def _generate_text(
             "error": "Backend not initialized in worker",
             "pid": os.getpid(),
             "instance_id": _WORKER_ID,
+            "memory": mem_dict,
         }
+    
     result = _BACKEND.generate(
         session_id=session_id,
         prompt=prompt,
@@ -79,9 +96,23 @@ def _generate_text(
         stop=stop,
         timeout_s=timeout_s,
     )
-    # Add PID and instance_id to response metadata
+    
+    # Add PID, instance_id and backend info to response
     result["pid"] = os.getpid()
     result["instance_id"] = _WORKER_ID
+    result["memory"] = mem_dict
+    
+    # Add backend info if available
+    if hasattr(_BACKEND, 'info'):
+        backend_info = _BACKEND.info()
+        backend_info.update({
+            "pid": os.getpid(),
+            "instance_id": _WORKER_ID,
+            "rss": mem_dict["rss"],
+            "vms": mem_dict["vms"]
+        })
+        result["backend_info"] = backend_info
+    
     return result
 
 

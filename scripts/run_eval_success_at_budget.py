@@ -123,6 +123,12 @@ def main():
             print("Either set APEX_ALLOW_NETWORK=1 or use --offline with fixtures.")
             sys.exit(1)
     
+    # Block stub backend in real mode
+    if args.mode != "stub" and os.getenv("APEX_LLM_BACKEND", "") == "stub":
+        print("Error: Refusing to run real mode with stub backend.")
+        print("Set APEX_LLM_BACKEND=llama_cpp_metal for Mac or hf_cuda for GPU.")
+        sys.exit(1)
+    
     # Load task list if provided
     task_list = None
     if args.task_list:
