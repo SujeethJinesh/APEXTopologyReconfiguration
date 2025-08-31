@@ -10,13 +10,23 @@ import time
 from pathlib import Path
 from typing import Any, List, Optional, Tuple
 
+from apex.agents.message_swe_agent import MessageSWEAgent
 from apex.controller.bandit_v1 import BanditSwitchV1
+
+# APEX system components for dynamic topology switching
+from apex.controller.controller import APEXController
+from apex.controller.features import FeatureSource
+from apex.runtime.coordinator import Coordinator
+from apex.runtime.message import AgentID
+from apex.runtime.router import Router
+from apex.runtime.switch import SwitchEngine
 
 from .providers.swe_lite import SWELiteProvider, SWERecord
 from .repo_manager import RepoManager
 from .task import Task, TaskResult
 
 # StubTask class removed - only real SWE-bench tasks allowed
+
 
 class EvalHarness:
     """Main evaluation harness for Success@Budget metric."""
@@ -41,9 +51,9 @@ class EvalHarness:
             task_list: Optional list of task IDs to use (ensures consistent evaluation)
         """
         # Configure logging
-        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
         self.logger = logging.getLogger(f"{__name__}.EvalHarness")
-        
+
         # ONLY real SWE-bench mode allowed
         self.seed = seed
         self.split = split
@@ -52,7 +62,7 @@ class EvalHarness:
         self.oracle_smoke = oracle_smoke
         self.task_list = task_list
         self.rng = random.Random(seed)  # Use instance RNG for determinism
-        
+
         self.logger.info(
             f"[EVAL] Initializing harness: seed={seed}, split={split}, "
             f"limit={limit}, offline={offline}, oracle={oracle_smoke}"
@@ -83,7 +93,7 @@ class EvalHarness:
         self.logger.info(
             f"[EVAL] Loading tasks: n_episodes={n_episodes}, task_list={self.task_list}"
         )
-        
+
         # When task_list is provided, we need to load from ALL splits to find tasks
         # This handles the case where we use test split IDs but run with --split dev
         if self.task_list:
@@ -93,9 +103,7 @@ class EvalHarness:
             # Try test split first (300 tasks)
             try:
                 self.logger.info("[EVAL] Loading test split for task lookup")
-                test_records = self.provider.load(
-                    split="test", limit=None, offline=self.offline
-                )
+                test_records = self.provider.load(split="test", limit=None, offline=self.offline)
                 self.logger.info(f"[EVAL] Found {len(test_records)} tasks in test split")
                 for record in test_records:
                     task = Task(
@@ -144,7 +152,7 @@ class EvalHarness:
                     self.logger.debug(f"[EVAL] Found task {task_id} in splits")
                 else:
                     self.logger.warning(f"[EVAL] Task {task_id} not found in any SWE split")
-            
+
             load_time = time.time() - start_time
             self.logger.info(
                 f"[EVAL] Task loading completed: {len(filtered_tasks)} tasks in {load_time:.2f}s"
@@ -207,7 +215,7 @@ class EvalHarness:
         self.logger.info(
             f"[EVAL] Starting episode: task={task.task_id}, policy={policy}, budget={budget}"
         )
-        
+
         epoch_switches = 0
 
         # Run actual SWE-bench task - NO SIMULATION
@@ -220,7 +228,14 @@ class EvalHarness:
             f"[EVAL] Running SWE episode: repo={swe_record.repo}, "
             f"base_commit={swe_record.base_commit[:8]}"
         )
-        success, tokens_used = self._run_swe_episode(swe_record, budget)
+
+        # Check if this is the APEX dynamic topology policy
+        if policy == "apex":
+            self.logger.info("[EVAL] Using APEX dynamic topology policy with MessageSWEAgent")
+            success, tokens_used, epoch_switches = self._run_apex_swe_episode(swe_record, budget)
+        else:
+            # Use existing static policy behavior
+            success, tokens_used = self._run_swe_episode(swe_record, budget)
 
         # Success is determined by test execution
         task.expected_success = success
@@ -228,7 +243,7 @@ class EvalHarness:
         # Check budget violation
         over_budget = tokens_used > budget
         episode_time = time.time() - episode_start
-        
+
         self.logger.info(
             f"[EVAL] Episode completed: success={success}, tokens={tokens_used}/{budget}, "
             f"over_budget={over_budget}, time={episode_time:.2f}s"
@@ -249,7 +264,6 @@ class EvalHarness:
             notes=f"topology_pref={task.topology_preference}",
         )
 
-
     def _run_swe_episode(self, record: SWERecord, budget_tokens: int) -> Tuple[bool, int]:
         """Run a SWE-bench episode with actual repository and tests.
 
@@ -264,7 +278,7 @@ class EvalHarness:
         self.logger.info(
             f"[EVAL] SWE episode start: task_id={record.task_id}, oracle={self.oracle_smoke}"
         )
-        
+
         try:
             # Prepare workspace with repository at base commit
             repo_path = RepoManager.prepare_workspace(
@@ -288,7 +302,7 @@ class EvalHarness:
                     f"test_duration={test_result['duration_s']:.2f}s"
                 )
                 return success, tokens_used
-            
+
             # NEW: Use improved SWE agent V2 to attempt solving the task
             try:
                 self.logger.info("[EVAL] Loading SWE Agent V2")
@@ -297,9 +311,9 @@ class EvalHarness:
                 # Fall back to V1 if V2 not available
                 self.logger.warning("[EVAL] SWE Agent V2 not available, falling back to V1")
                 from apex.agents.swe_agent import SWEAgent as SWEAgentV2
-            
+
             # Check if LLM client is available
-            llm_client = getattr(self, 'llm_client', None)
+            llm_client = getattr(self, "llm_client", None)
             if llm_client is None:
                 # Try to create one if not provided
                 try:
@@ -308,30 +322,29 @@ class EvalHarness:
                     from apex.config.swe_config import get_swe_config
                     from apex.llm.client import LLMClient, LLMConfig
                     from apex.utils.memory_monitor import check_memory_for_llm, log_memory_status
-                    
+
                     # Use SWE-optimized config
                     swe_cfg = get_swe_config()
-                    
+
                     # Check memory before starting
                     log_memory_status("[SWE] Before LLM start: ")
                     can_start, msg = check_memory_for_llm(
-                        num_instances=swe_cfg['num_instances'],
-                        gb_per_instance=swe_cfg['max_memory_per_instance_gb']
+                        num_instances=swe_cfg["num_instances"],
+                        gb_per_instance=swe_cfg["max_memory_per_instance_gb"],
                     )
-                    
+
                     if not can_start:
                         print(f"[SWE] {msg}")
                         raise RuntimeError("Insufficient memory for LLM")
-                    
+
                     print(f"[SWE] {msg}")
-                    
+
                     # Create LLM with SWE config
                     llm_config = LLMConfig(
-                        num_instances=swe_cfg['num_instances'],
-                        timeout_s=swe_cfg['timeout_s']
+                        num_instances=swe_cfg["num_instances"], timeout_s=swe_cfg["timeout_s"]
                     )
                     llm_client = LLMClient(llm_config)
-                    
+
                     # Start with timeout
                     asyncio.run(llm_client.ensure_started())
                 except Exception as e:
@@ -346,20 +359,21 @@ class EvalHarness:
                     success = test_result["exit_code"] == 0 and test_result["failed"] == 0
                     tokens_used = int(test_result["duration_s"] * 100) + 1000
                     return success, tokens_used
-            
+
             # Create V2 agent with improved prompts and error handling
             agent = SWEAgentV2(llm_client=llm_client)
             self.logger.info("[EVAL] Created agent, starting solve task")
-            
+
             # Run agent asynchronously
             import asyncio
+
             agent_start = time.time()
             success, tokens_used = asyncio.run(
                 agent.solve_task(
                     problem_statement=record.problem_statement,
                     repo_path=Path(repo_path),
                     fail_tests=record.fail_to_pass if record.fail_to_pass else [],
-                    budget=budget_tokens
+                    budget=budget_tokens,
                 )
             )
             agent_time = time.time() - agent_start
@@ -367,7 +381,7 @@ class EvalHarness:
                 f"[EVAL] Agent completed: success={success}, tokens={tokens_used}, "
                 f"time={agent_time:.2f}s"
             )
-            
+
             # If agent claims success, verify with actual test run
             if success:
                 self.logger.info("[EVAL] Agent claims success, verifying with tests")
@@ -385,7 +399,7 @@ class EvalHarness:
                     f"time={verify_time:.2f}s"
                 )
                 self.logger.info(f"[EVAL] Final task success: {success}")
-            
+
             return success, tokens_used
 
         except Exception as e:
@@ -396,6 +410,186 @@ class EvalHarness:
                 f"time={swe_time:.2f}s"
             )
             return False, budget_tokens  # Use full budget on error
+
+    def _run_apex_swe_episode(self, record: SWERecord, budget_tokens: int) -> Tuple[bool, int, int]:
+        """Run a SWE-bench episode with APEX dynamic topology switching.
+
+        Args:
+            record: SWERecord with task details
+            budget_tokens: Token budget for this episode
+
+        Returns:
+            (success, tokens_used, epoch_switches) tuple
+        """
+        import asyncio
+        import uuid
+
+        apex_start = time.time()
+        self.logger.info(
+            f"[EVAL] APEX episode start: task_id={record.task_id}, budget={budget_tokens}"
+        )
+
+        epoch_switches = 0
+
+        try:
+            # Prepare workspace with repository at base commit
+            repo_path = RepoManager.prepare_workspace(
+                record=record,
+                work_root=str(self.work_root),
+                oracle=self.oracle_smoke,
+            )
+
+            # If in oracle mode, just run tests (gold patch already applied)
+            if self.oracle_smoke:
+                self.logger.info("[EVAL] Oracle mode: running validation tests only")
+                test_result = RepoManager.run_tests(
+                    repo_path=repo_path,
+                    test_select=record.fail_to_pass if record.fail_to_pass else None,
+                    timeout_s=180,
+                )
+                success = test_result["exit_code"] == 0 and test_result["failed"] == 0
+                tokens_used = int(test_result["duration_s"] * 100) + 1000
+                self.logger.info(
+                    f"[EVAL] Oracle result: success={success}, "
+                    f"test_duration={test_result['duration_s']:.2f}s"
+                )
+                return success, tokens_used, 0
+
+            # Create APEX stack for dynamic topology switching
+            self.logger.info("[EVAL] Initializing APEX stack components")
+
+            # 1. Create Router with epoch-gated queues
+            router = Router(queue_cap_per_agent=1000, fanout_cap=2)
+
+            # 2. Create SwitchEngine for atomic topology transitions
+            switch_engine = SwitchEngine(router=router, quiesce_deadline_ms=50)
+
+            # 3. Create Coordinator for dwell/cooldown enforcement
+            coordinator = Coordinator(switch_engine=switch_engine)
+
+            # 4. Create BanditSwitchV1 for topology decisions
+            bandit = BanditSwitchV1(
+                epsilon_start=0.3, epsilon_end=0.1, epsilon_decay=0.995, learning_rate=0.01
+            )
+
+            # 5. Create FeatureSource for bandit context
+            feature_source = FeatureSource()
+
+            # 6. Create APEXController to orchestrate everything
+            controller = APEXController(
+                bandit=bandit,
+                feature_src=feature_source,
+                coordinator=coordinator,
+                switch=switch_engine,
+                budget=budget_tokens,
+            )
+
+            # 7. Create MessageSWEAgent with APEX integration
+            episode_id = str(uuid.uuid4())
+            agent_id = AgentID("message_swe_agent")
+
+            # Create LLM and FS instances (simplified for now)
+            llm = None  # Will use default LLM client from existing harness logic
+            fs = None  # Will use filesystem operations through RepoManager
+
+            message_agent = MessageSWEAgent(
+                agent_id=agent_id,
+                router=router,
+                switch=switch_engine,
+                fs=fs,
+                episode_id=episode_id,
+                llm=llm,
+            )
+
+            self.logger.info("[EVAL] APEX stack initialized, starting MessageSWEAgent")
+
+            # Run MessageSWEAgent with dynamic topology switching
+            async def run_with_apex():
+                nonlocal epoch_switches
+
+                try:
+                    # Start the APEX controller monitoring in the background
+                    controller_task = None
+                    try:
+                        # Start controller tick loop
+                        async def controller_loop():
+                            while True:
+                                decision = await controller.tick()
+                                coordinator.step()
+
+                                # Track topology switches
+                                if decision.get("switch", {}).get("committed", False):
+                                    nonlocal epoch_switches
+                                    epoch_switches += 1
+                                    topo_after = decision.get("topology_after")
+                                    self.logger.info(
+                                        f"[EVAL] Topology switched to {topo_after}, "
+                                        f"total switches: {epoch_switches}"
+                                    )
+
+                                # Brief pause between controller ticks
+                                await asyncio.sleep(0.1)
+
+                        # Start controller in background
+                        controller_task = asyncio.create_task(controller_loop())
+
+                        # Run the actual SWE solving task
+                        success, tokens_used = await message_agent.solve_task(
+                            problem_statement=record.problem_statement,
+                            repo_path=Path(repo_path),
+                            fail_tests=record.fail_to_pass if record.fail_to_pass else [],
+                            budget=budget_tokens,
+                        )
+
+                        return success, tokens_used
+
+                    except Exception as e:
+                        self.logger.error(f"[EVAL] Error in APEX controller/agent: {e}")
+                        return False, budget_tokens
+                    finally:
+                        # Clean up controller task
+                        if controller_task:
+                            controller_task.cancel()
+                            try:
+                                await controller_task
+                            except asyncio.CancelledError:
+                                pass
+
+                except Exception as e:
+                    self.logger.error(f"[EVAL] Error in APEX episode: {e}")
+                    return False, budget_tokens
+
+            # Run the async APEX episode
+            success, tokens_used = asyncio.run(run_with_apex())
+
+            # If agent claims success, verify with actual test run
+            if success:
+                self.logger.info("[EVAL] MessageSWEAgent claims success, verifying with tests")
+                verify_start = time.time()
+                test_result = RepoManager.run_tests(
+                    repo_path=repo_path,
+                    test_select=record.fail_to_pass if record.fail_to_pass else None,
+                    timeout_s=180,
+                )
+                verify_time = time.time() - verify_start
+                success = test_result["exit_code"] == 0 and test_result["failed"] == 0
+                self.logger.info(
+                    f"[EVAL] Verification: passed={test_result.get('passed', 0)}, "
+                    f"failed={test_result.get('failed', 0)}, exit_code={test_result['exit_code']}, "
+                    f"time={verify_time:.2f}s, switches={epoch_switches}"
+                )
+                self.logger.info(f"[EVAL] Final APEX task success: {success}")
+
+            return success, tokens_used, epoch_switches
+
+        except Exception as e:
+            # Log error and treat as failure
+            apex_time = time.time() - apex_start
+            self.logger.error(
+                f"[EVAL] APEX episode error: task={record.task_id}, error={e}, "
+                f"time={apex_time:.2f}s"
+            )
+            return False, budget_tokens, epoch_switches
 
     def cleanup(self):
         """Clean up workspace after evaluation."""
