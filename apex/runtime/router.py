@@ -17,10 +17,10 @@ TopologyType = Literal["star", "chain", "flat"]
 
 # Chain topology next hop mapping
 CHAIN_NEXT = {
-    AgentID("Planner"): AgentID("Coder"),
-    AgentID("Coder"): AgentID("Runner"),
-    AgentID("Runner"): AgentID("Critic"),
-    AgentID("Critic"): None,  # End of chain
+    AgentID("planner"): AgentID("coder"),
+    AgentID("coder"): AgentID("runner"),
+    AgentID("runner"): AgentID("critic"),
+    AgentID("critic"): None,  # End of chain
 }
 
 
@@ -46,11 +46,11 @@ class Router:
         self._accepting_next = False  # Set during PREPARE phase
         self._topology: TopologyType = "star"  # Default topology
         self._known_agents: Set[AgentID] = {
-            AgentID("Manager"),
-            AgentID("Planner"),
-            AgentID("Coder"),
-            AgentID("Runner"),
-            AgentID("Critic"),
+            AgentID("manager"),
+            AgentID("planner"),
+            AgentID("coder"),
+            AgentID("runner"),
+            AgentID("critic"),
         }
 
     def _q(self, agent: AgentID, epoch: Epoch) -> asyncio.Queue[Message]:
@@ -82,14 +82,14 @@ class Router:
             True if allowed by topology, False otherwise
         """
         if self._topology == "star":
-            # STAR: Only Planner hub can broadcast, no peer-to-peer
+            # STAR: Only planner hub can broadcast, no peer-to-peer
             if msg.recipient == "BROADCAST":
-                if msg.sender != AgentID("Planner"):
-                    msg.drop_reason = "invalid_topology_route: only Planner can broadcast in star"
+                if msg.sender != AgentID("planner"):
+                    msg.drop_reason = "invalid_topology_route: only planner can broadcast in star"
                     return False
                 return True
-            # All non-broadcast messages must involve Planner
-            if msg.sender != AgentID("Planner") and msg.recipient != AgentID("Planner"):
+            # All non-broadcast messages must involve planner
+            if msg.sender != AgentID("planner") and msg.recipient != AgentID("planner"):
                 msg.drop_reason = "invalid_topology_route: peer-to-peer not allowed in star"
                 return False
             return True
@@ -102,11 +102,11 @@ class Router:
 
             # Check next hop
             expected_next = CHAIN_NEXT.get(msg.sender)
-            if expected_next is None and msg.sender == AgentID("Critic"):
-                # Special case: Critic can send back to Manager
-                if msg.recipient == AgentID("Manager"):
+            if expected_next is None and msg.sender == AgentID("critic"):
+                # Special case: critic can send back to manager
+                if msg.recipient == AgentID("manager"):
                     return True
-                msg.drop_reason = "invalid_chain_hop: Critic can only send to Manager"
+                msg.drop_reason = "invalid_chain_hop: critic can only send to manager"
                 return False
 
             if msg.recipient != expected_next:
@@ -216,6 +216,31 @@ class Router:
         # unless the switch has been COMMITTED
         # During PREPARE/QUIESCE, messages go to next but cannot be dequeued
         return None
+    
+    async def drain_all_active_queues(self) -> int:
+        """Drain all messages from active epoch queues.
+        
+        This is useful for test cleanup and ensuring clean topology switches.
+        
+        Returns:
+            int: Number of messages drained
+        """
+        drained_count = 0
+        
+        # Drain all known agent queues
+        for agent in self._known_agents:
+            agent_id = AgentID(agent)
+            q_active = self._q(agent_id, self._active_epoch)
+            
+            # Drain this agent's queue
+            while True:
+                try:
+                    q_active.get_nowait()
+                    drained_count += 1
+                except asyncio.QueueEmpty:
+                    break
+        
+        return drained_count
 
     def enable_next_buffering(self):
         """Enable buffering to next epoch (PREPARE phase)."""
