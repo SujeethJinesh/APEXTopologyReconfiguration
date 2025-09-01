@@ -18,7 +18,7 @@ async def main():
     
     # Configuration
     N_TASKS = 1  # Start with just 1 task for testing
-    BUDGET = 5000  # Smaller budget for quicker testing
+    BUDGET = 32000  # Full budget for proper solving
     SEED = 42
     
     print("=" * 80)

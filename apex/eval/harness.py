@@ -333,8 +333,11 @@ class EvalHarness:
             
             # Initialize router and switch for message passing
             router = Router()
-            switch = SwitchEngine()
-            fs = FS()
+            switch = SwitchEngine(router=router, quiesce_deadline_ms=50)
+            
+            # Create filesystem interface sandboxed to repo
+            from apex.integrations.mcp.fs_local import LocalFS
+            fs = LocalFS(base_path=Path(repo_path))
             
             # Create the message-based SWE agent
             message_agent = MessageSWEAgent(

@@ -1,38 +1,51 @@
-# APEX Framework: Engineering, Training & MVP Implementation Spec (v15)
+# APEX Framework: Engineering, Training & MVP Implementation Spec (v16)
 
 **Adaptive Phase-aware EXecution for Dynamic Multi-Agent LLM Coordination**
 
-- **Target Platform:** single host, ≤ 7 agents, M1 Mac 64 GB (dev) → 4×H100 (prod)
-- **Hero workload:** SWE-bench Lite (for fast iteration), with PettingZoo phase-shift training env.
+- **Target Platform:** single host, ≤ 5 agents, M1 Mac 64 GB (dev) → 4×H100 (prod)
+- **Hero workload:** SWE-bench Lite (dev split), with epsilon-greedy contextual bandit
 
-## Δ vs v14 (What Changed in This Revision)
+## Current Implementation Status (v16)
 
-### Integrated hierarchical-optimization + async-first design details to make the spec fully codegen-ready:
+### What's Implemented (Working):
 
-1. **LLM service overhaul:** Replace Ollama/HTTP client with PortableMultiInstanceLLMManager. Concurrency: ProcessPoolExecutor(spawn); per-process singleton model; warmup; health ping; progress-aware episode timeout.
+1. **Core APEX Framework:**
+   - ✅ MessageSWEAgent coordinating 5 generic agents through message passing
+   - ✅ APEXController with epsilon-greedy contextual bandit (Sherman-Morrison updates)
+   - ✅ Dynamic topology switching (star, chain, flat) with phase detection
+   - ✅ Router and Switch infrastructure for message routing
+   - ✅ Topology-aware agent initialization messages
 
-2. **Hierarchical control stack:** Controller (top) → A2A Protocol Layer (agent comms & delegation) → MCP servers (tools) → LLM service (portable multi-instance) with explicit contracts.
+2. **LLM Integration:**
+   - ✅ PortableLLMClient with llama_cpp_metal backend for Mac
+   - ✅ GGUF model loading and parallel instances (N=3)
+   - ✅ 32k token budget for episodes
+   - ✅ Proper async/await with nest_asyncio for event loops
 
-3. **Latency-oriented tactics for controller p95 < 10 ms:**
+3. **MCP Integration:**
+   - ✅ LocalFS for sandboxed file system access
+   - ✅ File operations: read, write, patch, search
+   - ✅ All agents have FS access for code manipulation
 
-   - Pre-compiled Agent Plan Cache for common SWE-bench patterns (cache hits avoid LLM calls)
-   - Async connection pooling saves 5–8 ms per LLM/tool request
-   - Parallel preparation via `asyncio.gather()` for topology switch PREPARE and agent warmups
+4. **Evaluation Harness:**
+   - ✅ Real SWE-bench lite tasks loading
+   - ✅ Comparison across topologies (star, chain, flat)
+   - ✅ Token tracking and success metrics
 
-4. **Switching p95 < 100 ms improvements:**
+### What's Not Working (Issues):
 
-   - Topology health pre-validation + parallel agent prep
-   - Agent health caches (10 s TTL)
+1. **Agent Problem-Solving (Critical):**
+   - ❌ Agents discuss but don't generate concrete code fixes
+   - ❌ 0% success rate across all topologies
+   - ❌ Token exhaustion without meaningful progress
 
-5. **Budgets:** multi-scope (daily | per-task/episode | per-agent) tracked asynchronously
+2. **Missing Components:**
+   - ❌ Proper phase detection for topology switching
+   - ❌ Agent-to-agent learning/adaptation
+   - ❌ Test runner integration for validation
+   - ❌ Git operations for patch generation
 
-6. **TokenizerPool:** cached tokenizers for fast, consistent token estimates
-
-7. **State vector update:** repurpose the spare (Idx 23) to `plan_cache_hit_norm` (keep 24-feature contract)
-
-8. **New milestones (M13–M15)** with DoD and test harnesses for the above
-
-> All prior corrections remain: mutable Message, approx/streaming percentiles, DRR strictly within active epoch, exact APIs/contracts.
+### Key Learnings:
 
 ---
 

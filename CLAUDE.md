@@ -113,6 +113,28 @@ When reviewer requests changes:
 9. **PR Updates:** Update PR description with latest changes and permalinks
 10. **Permalinks.md Maintenance:** Update `docs/permalinks.md` after EVERY commit with latest SHA and file changes
 
+## Recent Integration Work (August 31, 2025)
+
+### APEX Multi-Agent Framework Status
+
+#### What Was Implemented
+- **Generic Agent Collaboration**: 5 agents (Agent-1 through Agent-5) collaborate through message passing
+- **Topology-Aware Initialization**: Agents receive role descriptions specific to their topology position
+- **Dynamic Topology Switching**: Epsilon-greedy contextual bandit for intra-task topology changes
+- **MCP File System Integration**: Sandboxed file access for reading/writing code
+- **LLM Integration**: llama_cpp_metal backend with 3 parallel instances
+
+#### Current Limitations
+- **0% Success Rate**: Agents initialize but don't generate concrete code fixes
+- **Token Budget Exhaustion**: Uses full 32k tokens without solving tasks
+- **Missing Problem-Solving Loop**: Agents need better prompting for actual SWE task completion
+
+#### Key Learning
+The infrastructure works (LLM loads, agents communicate, topology switches) but agents need:
+1. Better task-specific prompting
+2. Concrete action generation (not just discussion)
+3. Iterative refinement based on test results
+
 ## Common Review Issues & Solutions
 
 ### "Can't see file in PR"
