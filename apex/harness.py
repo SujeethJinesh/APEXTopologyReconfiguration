@@ -6,16 +6,15 @@ Ties together all components for episode execution.
 import asyncio
 import time
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from .agents.scripted import create_agent
 from .controllers.bandit import BanditConfig, BanditSwitch, BanditSwitchOracle
 from .coord.coordinator import CoordConfig, Coordinator
+from .integrations.mcp.fs_local import LocalFS
+from .integrations.mcp.test_runner import PytestAdapter
 from .llm.client import LLMClient, LLMConfig, TokenTracker
-from .mcp.fs import FSConfig, MCPFileSystem
-from .mcp.test import MCPTestRunner, TestConfig
 from .runtime.message import AgentID, Message
 from .runtime.router import Router
 from .runtime.switch import SwitchEngine
@@ -77,8 +76,8 @@ class APEXHarness:
         self.llm_client = LLMClient(self.llm_config, self.token_tracker)
 
         # MCP adapters
-        self.fs = MCPFileSystem(FSConfig(root_dir=Path(workspace_dir)))
-        self.test_runner = MCPTestRunner(TestConfig())
+        self.fs = LocalFS(root=str(workspace_dir))
+        self.test_runner = PytestAdapter(workdir=str(workspace_dir))
 
         # Controllers
         self.phase_heuristics = PhaseHeuristics()
@@ -133,6 +132,10 @@ class APEXHarness:
         self.token_tracker.reset()
         self.bandit.reset_episode()
         topology_switches = []
+        
+        # Track initial phase for phase advancement detection
+        if config.topology == "dynamic":
+            self._initial_phase = self.oracle.phase_detector.infer_phase()
 
         # Setup initial topology
         initial_topology = config.topology if config.topology != "dynamic" else "star"
@@ -207,8 +210,8 @@ class APEXHarness:
                             # Update agents' topology
                             await self._update_agent_topology(target_topo)
 
-                # Process messages (simplified - agents handle async)
-                await asyncio.sleep(0.1)  # Allow agents to process
+                # Process messages with ultra-low latency yield
+                await asyncio.sleep(0.0001)  # 0.1ms for sub-100ms switching
 
                 # Check for completion (look for summary message)
                 summary = await self._check_for_summary(episode_id)
@@ -226,11 +229,25 @@ class APEXHarness:
 
         # Compute final reward if using bandit
         if config.topology == "dynamic":
+            # Track phase advancement during episode
+            final_phase = self.oracle.phase_detector.infer_phase()
+            phase_advanced = (hasattr(self, '_initial_phase') and 
+                            self._initial_phase != final_phase)
+            
+            # Calculate test pass delta (simplified - would need baseline test results)
+            test_pass_delta = 1.0 if success else 0.0  # Use success as proxy for now
+            
+            # Calculate token delta (tokens used this episode)
+            token_delta = self.token_tracker.used
+            
             reward = self.bandit.compute_reward(
                 success=success,
                 tokens_used=self.token_tracker.used,
                 time_elapsed=time.time() - start_time,
                 iterations=iteration,
+                phase_advanced=phase_advanced,
+                test_pass_delta=test_pass_delta,
+                token_delta=token_delta,
             )
 
             # Update bandit with final context

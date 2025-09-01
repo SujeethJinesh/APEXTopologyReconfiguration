@@ -1,0 +1,37 @@
+{
+  "config": {
+    "n_tasks": 1,
+    "budget": 32000,
+    "seed": 42,
+    "timestamp": "2025-08-31T17:34:34.542234"
+  },
+  "results": {
+    "static_star": [
+      {
+        "task_id": "sqlfluff__sqlfluff-1625",
+        "policy": "static_star",
+        "success": false,
+        "tokens_used": 32000,
+        "time": 32.75609016418457
+      }
+    ],
+    "static_chain": [
+      {
+        "task_id": "sqlfluff__sqlfluff-1625",
+        "policy": "static_chain",
+        "success": false,
+        "tokens_used": 32000,
+        "time": 24.458892107009888
+      }
+    ],
+    "static_flat": [
+      {
+        "task_id": "sqlfluff__sqlfluff-1625",
+        "policy": "static_flat",
+        "success": false,
+        "tokens_used": 32000,
+        "time": 24.467705965042114
+      }
+    ]
+  }
+}

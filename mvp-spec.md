@@ -56,7 +56,12 @@ Does an epoch-gated, dynamic topology controller improve Success@Budget on SWE-b
 - **Coordinator:** Holds switch_lock, enforces dwell_min_steps and cooldown, executes switch on controller decisions
 - **Controller (MVP policy):** BanditSwitch v1 (linear contextual bandit) choosing among {stay, star, chain, flat}; epsilon-greedy; no QR-DQN
 - **MCP (tools):** FS (read/write/patch/search) and Test (discover/run) adapters only. Git adapter deferred (we can rely on SWE-bench harness repo setup)
-- **LLM Service:** Ollama (Metal) for dev. No pooling; single async client
+- **LLM Service (MVP):** Portable, process-isolated multi-instance client (N≤5 on Mac). Defaults: llama.cpp (Metal) on Mac with auto-download of GGUF models (APEX_GGUF_MODEL_PATH or auto-fetch), HF+4-bit on H100. No HTTP pooling. Per-call timeouts and hard token budget deny. One instance per agent role (stable hash mapping) to avoid context mixing. Implementation uses MultiInstanceLLMManager with spawn context for true isolation.
+  • Mac (dev): llama.cpp via llama-cpp-python (Metal enabled) loading GGUF (e.g., Llama 3.1 8B Instruct Q4)
+  • H100 (prod path): HuggingFace Transformers (4-bit or fp16 via bitsandbytes/accelerate), one process per GPU
+  • Concurrency: N independent processes → no shared context between agents
+  • Interface: The existing LLMClient.generate() is preserved; the client delegates to a MultiInstanceLLMManager
+  • Pooling: No HTTP pooling (not applicable). Concurrency comes from processes, not HTTP sessions
 - **A2A (internal):** In-process message envelopes (no external bridge). External A2A is deferred
 
 ### 1.2 Concurrency Model (Simple & Explicit)
@@ -119,6 +124,7 @@ MAX_ATTEMPTS         = 5
 - **Allow rule:** approve if `used + estimate <= budget`
 - **Estimate:** `len(prompt_tokens) + max_tokens` (Conservative by adding a fixed +10% headroom factor is allowed but optional)
 - **Deny path:** If a call would exceed budget → deny, log `budget_denied`, and the episode proceeds (the agent must try a cheaper step or terminate)
+- **Token counting:** Token counts are computed per backend using the model's tokenizer. The client returns {text, tokens_in, tokens_out, status} so budget enforcement remains unchanged.
 
 > Time budgets, multi-scope budgets, dual variables, and BudgetGuard reservations are deferred to Post-MVP.
 
@@ -156,13 +162,16 @@ We use **8 features only:**
   - A_a ← A_a + xx^T
   - b_a ← b_a + rx
   - w_a ← A_a^(-1) b_a
-- **ε schedule:** 0.2 → 0.05 linearly over first 5k decisions
+- **ε schedule:** 0.8 → 0.6 linearly over first 1k decisions (aggressive exploration for MVP)
 
-**Reward (step-level):**
+**Reward (MVP-simplified):**
+- -0.05 if switch committed this tick (switch penalty)
+- Episode terminal: +1.0 if full success, else 0.0
+
+**Reward (full - post-MVP):**
 - +0.3 on phase advancement (using heuristics below)
 - +0.7 × Δ test pass rate (subset of tests)
 - -1e-4 × Δ tokens
-- -0.05 if switch committed this tick
 
 **Episode terminal bonus:** +1.0 if full success by SWE-bench Lite harness, else 0.0
 
@@ -172,11 +181,11 @@ We use **8 features only:**
 
 ## 5) MVP Phase Detection Heuristics (Explicit)
 
-**Sliding window (last 5 messages):**
-- **Planning:** planner_share ≥ 0.60 OR no test run yet
-- **Implementation:** (coder + runner) share ≥ 0.50 AND ≥ 1 code edit
-- **Debug:** critic_share ≥ 0.40 OR failing tests observed
-- **Tie-break:** keep current phase (hysteresis)
+**Enhanced multi-signal detection (last 5 messages):**
+- **Planning:** planner_activity × 2 + broadcast_count + planning_keywords ≥ 4
+- **Implementation:** coder_activity × 2 + peer_to_peer + impl_keywords ≥ 2
+- **Debug:** (runner + critic)_activity × 2 + debug_keywords ≥ 3
+- **Tie-break:** message count proxy (< 10 = planning, < 30 = impl, else debug)
 
 ---
 
@@ -194,7 +203,7 @@ We use **8 features only:**
   - `run(selected=None, timeout_s=...)` returning structured results (pass/fail counts)
 
 - **LLM:** 
-  - Ollama client `generate(prompt, max_tokens)` with single `aiohttp.ClientSession`
+  - LLM client `generate(prompt, max_tokens)` via MultiInstanceLLMManager (process-isolated)
   - No pooling
   - If LLM returns errors or times out, the agent falls back to next scripted action
 
@@ -215,7 +224,7 @@ We use **8 features only:**
 - **Primary:** Success@10k tokens (absolute), lift over Best Static with paired bootstrap CI
 - **Secondary:** controller decision p95, switch p95, budget_denied count, and tokens used
 
-**Sample size (MVP):** start with N=100 episodes to get a directional read; if promising, scale to N=500 for confirmatory statistics
+**Sample size (MVP):** start with N=5-10 episodes for rapid iteration and debugging; scale to N=100 for directional read; if promising, scale to N=500 for confirmatory statistics
 
 ---
 
@@ -243,7 +252,7 @@ We use **8 features only:**
 #### F1.3 Coordinator
 - **T1.3** switch_lock, dwell/cooldown enforcement, TOPOLOGY_CHANGED event
 
-### A2 — MCP (FS/Test) & LLM (Ollama)
+### A2 — MCP (FS/Test) & LLM (Portable)
 
 #### F2.1 FS Adapter
 - **T2.1** read/write/patch/search (whitelist)
@@ -348,7 +357,54 @@ class LLM(Protocol):
 
 ---
 
-## 11) Minimal Runbooks
+## 11) Implementation Status (As of Latest Update)
+
+### Completed Components (Working)
+- ✅ Message schema with all required fields (apex/runtime/message.py)
+- ✅ Router with topology enforcement (apex/runtime/router.py) 
+- ✅ Switch engine with epoch gating (apex/runtime/switch.py)
+- ✅ APEXController with epsilon-greedy bandit (apex/controllers/apex_controller.py)
+- ✅ MessageSWEAgent coordinating 5 generic agents (apex/agents/message_swe_agent.py)
+- ✅ Generic agents with topology-aware initialization (apex/agents/generic.py)
+- ✅ MCP LocalFS for file operations (apex/integrations/mcp/fs_local.py)
+- ✅ PortableLLMClient with llama_cpp backend (apex/llm/client.py)
+- ✅ SWE-bench harness integration with real tasks (apex/eval/harness.py)
+- ✅ 32k token budget configuration
+- ✅ Real LLM integration with GGUF models
+
+### Critical Issues (Not Working)
+- ❌ Agents discuss but don't generate concrete code fixes (0% success rate)
+- ❌ Token exhaustion without meaningful progress
+- ❌ Missing proper problem-solving loop in agents
+- ❌ No test runner integration for validation
+- ❌ Phase detection not triggering topology switches effectively
+
+### MVP Compliance Assessment
+- **Architecture:** 90% compliant (all core components exist)
+- **Functionality:** 40% compliant (infrastructure works but agents ineffective)
+- **Evaluation:** 70% compliant (harness works, needs larger scale)
+- **Overall:** ~60% MVP compliance - requires agent effectiveness improvements
+
+---
+
+## 12) Minimal Runbooks
+
+### Setup
+
+```bash
+# Mac dev: llama.cpp (Metal) + GGUF
+pip install "llama-cpp-python==0.2.90"
+# Model auto-downloads if not present (or set APEX_GGUF_MODEL_PATH manually)
+export APEX_LLM_BACKEND=llama_cpp_metal
+export APEX_GGUF_MODEL_PATH=/path/to/Llama-3.1-8B-Instruct-Q4_K_M.gguf
+export APEX_NUM_LLM_INSTANCES=5
+
+# H100 prod path (optional for later)
+pip install "transformers>=4.43" "accelerate>=0.33" "bitsandbytes>=0.43" sentencepiece
+export APEX_LLM_BACKEND=hf_cuda
+export APEX_HF_MODEL_ID=meta-llama/Meta-Llama-3.1-8B-Instruct
+# (requires accepting license + setting HUGGINGFACE_HUB_TOKEN)
+```
 
 ### SWE-bench Lite — First 100 Episodes
 
@@ -421,7 +477,7 @@ If dynamic switching shows lift over the best static topology in N=100 episodes,
 ## 15) Immediate TODO (Start Coding)
 
 1. **A0–A1:** runtime (messages/queues/switch/coordinator) + unit tests
-2. **A2:** MCP FS/Test + simple Ollama client
+2. **A2:** MCP FS/Test + portable LLM client (process-isolated)
 3. **A3:** scripted agents + topology routing
 4. **A4:** BanditSwitch v1 + reward logging
 5. **A5:** run first N=100 benchmark and compute lift

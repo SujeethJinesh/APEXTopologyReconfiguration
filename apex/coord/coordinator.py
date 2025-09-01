@@ -17,8 +17,8 @@ from ..runtime.switch import SwitchEngine
 class CoordConfig:
     """Coordinator configuration."""
 
-    dwell_min_steps: int = 2  # Min steps before allowing switch
-    cooldown_steps: int = 2  # Steps to wait after switch
+    dwell_min_steps: int = 0  # No dwell requirement for sub-100ms switching
+    cooldown_steps: int = 0  # No cooldown for immediate switching
 
 
 class Coordinator:

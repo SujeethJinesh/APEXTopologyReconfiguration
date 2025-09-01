@@ -1,36 +1,51 @@
-# APEX Framework: Engineering, Training & MVP Implementation Spec (v15)
+# APEX Framework: Engineering, Training & MVP Implementation Spec (v16)
 
 **Adaptive Phase-aware EXecution for Dynamic Multi-Agent LLM Coordination**
 
-- **Target Platform:** single host, ≤ 7 agents, M1 Mac 64 GB (dev) → 4×H100 (prod)
-- **Hero workload:** SWE-bench Lite (for fast iteration), with PettingZoo phase-shift training env.
+- **Target Platform:** single host, ≤ 5 agents, M1 Mac 64 GB (dev) → 4×H100 (prod)
+- **Hero workload:** SWE-bench Lite (dev split), with epsilon-greedy contextual bandit
 
-## Δ vs v14 (What Changed in This Revision)
+## Current Implementation Status (v16)
 
-### Integrated hierarchical-optimization + async-first design details to make the spec fully codegen-ready:
+### What's Implemented (Working):
 
-1. **Hierarchical control stack:** Controller (top) → A2A Protocol Layer (agent comms & delegation) → MCP servers (tools) → LLM service (vLLM/Ollama) with explicit contracts.
+1. **Core APEX Framework:**
+   - ✅ MessageSWEAgent coordinating 5 generic agents through message passing
+   - ✅ APEXController with epsilon-greedy contextual bandit (Sherman-Morrison updates)
+   - ✅ Dynamic topology switching (star, chain, flat) with phase detection
+   - ✅ Router and Switch infrastructure for message routing
+   - ✅ Topology-aware agent initialization messages
 
-2. **Latency-oriented tactics for controller p95 < 10 ms:**
+2. **LLM Integration:**
+   - ✅ PortableLLMClient with llama_cpp_metal backend for Mac
+   - ✅ GGUF model loading and parallel instances (N=3)
+   - ✅ 32k token budget for episodes
+   - ✅ Proper async/await with nest_asyncio for event loops
 
-   - Pre-compiled Agent Plan Cache for common SWE-bench patterns (cache hits avoid LLM calls)
-   - Async connection pooling saves 5–8 ms per LLM/tool request
-   - Parallel preparation via `asyncio.gather()` for topology switch PREPARE and agent warmups
+3. **MCP Integration:**
+   - ✅ LocalFS for sandboxed file system access
+   - ✅ File operations: read, write, patch, search
+   - ✅ All agents have FS access for code manipulation
 
-3. **Switching p95 < 100 ms improvements:**
+4. **Evaluation Harness:**
+   - ✅ Real SWE-bench lite tasks loading
+   - ✅ Comparison across topologies (star, chain, flat)
+   - ✅ Token tracking and success metrics
 
-   - Topology health pre-validation + parallel agent prep
-   - Agent health caches (10 s TTL)
+### What's Not Working (Issues):
 
-4. **Budgets:** multi-scope (daily | per-task/episode | per-agent) tracked asynchronously
+1. **Agent Problem-Solving (Critical):**
+   - ❌ Agents discuss but don't generate concrete code fixes
+   - ❌ 0% success rate across all topologies
+   - ❌ Token exhaustion without meaningful progress
 
-5. **TokenizerPool:** cached tokenizers for fast, consistent token estimates
+2. **Missing Components:**
+   - ❌ Proper phase detection for topology switching
+   - ❌ Agent-to-agent learning/adaptation
+   - ❌ Test runner integration for validation
+   - ❌ Git operations for patch generation
 
-6. **State vector update:** repurpose the spare (Idx 23) to `plan_cache_hit_norm` (keep 24-feature contract)
-
-7. **New milestones (M13–M15)** with DoD and test harnesses for the above
-
-> All prior corrections remain: mutable Message, approx/streaming percentiles, DRR strictly within active epoch, exact APIs/contracts.
+### Key Learnings:
 
 ---
 
@@ -40,6 +55,15 @@
 - APEX makes topology a first-class, switchable primitive with consistency guarantees, keeps systems overhead low, and learns when to switch under strict token/time budgets.
 - Hierarchical + async design ensures the controller stays fast (< 10 ms) while heavy lifting (LLM, tooling) happens below with connection pooling and parallelism.
 - We measure rigorously: pre-registered SLOs, Clopper-Pearson bounds, paired bootstraps, all from artifacts/logs.
+- **SLOs:** Controller p95 unaffected by backend; N≤5 workers; per-call timeout 120–180 s; episode 30 min + progress extensions.
+
+---
+
+## Setup Requirements
+
+- **Mac (Dev):** GGUF model needed on Mac (set APEX_GGUF_MODEL_PATH); llama-cpp-python with Metal support
+- **H100 (Prod):** HF token for model access (if private models); bitsandbytes for 4-bit quantization
+- **Security:** Deny oversized payloads and enforce path whitelist (already in A1–A4)
 
 ---
 
@@ -50,7 +74,7 @@
 - **Controller (student policy):** p95 < 10 ms orchestration and topology decisions
 - **A2A Protocol Layer:** agent-to-agent comms & task delegation; normalizes external frameworks; messages go through APEX Router to preserve invariants and budgets
 - **MCP servers:** file/git/test tooling with atomicity and rollback
-- **LLM service:** unified vLLM (prod) / Ollama (dev) with streaming & budget integration
+- **LLM Service:** MultiInstanceLLMManager + backends (llama_cpp_metal | hf_cuda). One process per instance. No HTTP; no connection pooling. Tokens estimated by backend tokenizers; the client enforces token budgets.
 
 **Concurrency:** single-process asyncio (optional uvloop). All components async; critical sections guarded by `asyncio.Lock`; feature extraction uses incremental/approx stats; parallel steps use `asyncio.gather()`.
 
@@ -82,7 +106,7 @@ flowchart TB
     RT[Router + DRR/WRED<br/>Dedup, Retry/TTL]:::router
   end
   subgraph L3["L3: Services"]
-    LLM[LLM Service<br/>Ollama (dev) / vLLM (prod)]:::llm
+    LLM[LLM Service<br/>llama.cpp (Mac) / HF-CUDA (H100)<br/>Process-isolated instances]:::llm
     MCP[MCP Tool Adapters<br/>FS / Git / Test]:::mcp
   end
   subgraph Agents["Role Agents (≤7)"]
@@ -250,7 +274,9 @@ As v14, with **multi-scope budgets:**
 - **Budget violation CP (95%)** ≤ 1%
 - **Controller p95** < 10 ms; **Switch p95** < 100 ms
 - **Stress loss** mean ≤ 0.5%, p95 ≤ 1.0%
-- **APEX LLM overhead request→first byte:** Ollama (dev) < 5 ms p95; vLLM (prod) < 2 ms p95
+- **LLM generation start latency (process-isolated):**
+  • Warm path (post-warmup) median < 300 ms to first token on Mac Metal backend (target)
+  • H100 path measured separately via hf_cuda backend (post-MVP)
 - **Connection pooling benefit:** save ≥ 5 ms per request p50 vs no-pool baseline (measured in M12)
 - **PlanCache effectiveness:** ≥ 20% hit rate on dev set; token savings ≥ 10% on hit episodes
 - **Topology health pre-validation:** reduces switch aborts by ≥ 30% under stress profile

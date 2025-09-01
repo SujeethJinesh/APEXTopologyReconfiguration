@@ -1,0 +1,109 @@
+{
+  "summary": {
+    "static_star": {
+      "success_rate": 0.0,
+      "avg_tokens": 32000.0,
+      "total_tasks": 3,
+      "tasks": [
+        {
+          "task_id": "sqlfluff__sqlfluff-1625",
+          "policy": "static_star",
+          "success": false,
+          "tokens_used": 32000,
+          "time": 0,
+          "error": "asyncio.run() cannot be called from a running event loop"
+        },
+        {
+          "task_id": "sqlfluff__sqlfluff-2419",
+          "policy": "static_star",
+          "success": false,
+          "tokens_used": 32000,
+          "time": 0,
+          "error": "asyncio.run() cannot be called from a running event loop"
+        },
+        {
+          "task_id": "sqlfluff__sqlfluff-1733",
+          "policy": "static_star",
+          "success": false,
+          "tokens_used": 32000,
+          "time": 0,
+          "error": "asyncio.run() cannot be called from a running event loop"
+        }
+      ]
+    },
+    "static_chain": {
+      "success_rate": 0.0,
+      "avg_tokens": 32000.0,
+      "total_tasks": 3,
+      "tasks": [
+        {
+          "task_id": "sqlfluff__sqlfluff-1625",
+          "policy": "static_chain",
+          "success": false,
+          "tokens_used": 32000,
+          "time": 0,
+          "error": "asyncio.run() cannot be called from a running event loop"
+        },
+        {
+          "task_id": "sqlfluff__sqlfluff-2419",
+          "policy": "static_chain",
+          "success": false,
+          "tokens_used": 32000,
+          "time": 0,
+          "error": "asyncio.run() cannot be called from a running event loop"
+        },
+        {
+          "task_id": "sqlfluff__sqlfluff-1733",
+          "policy": "static_chain",
+          "success": false,
+          "tokens_used": 32000,
+          "time": 0,
+          "error": "asyncio.run() cannot be called from a running event loop"
+        }
+      ]
+    },
+    "static_flat": {
+      "success_rate": 0.0,
+      "avg_tokens": 32000.0,
+      "total_tasks": 3,
+      "tasks": [
+        {
+          "task_id": "sqlfluff__sqlfluff-1625",
+          "policy": "static_flat",
+          "success": false,
+          "tokens_used": 32000,
+          "time": 0,
+          "error": "asyncio.run() cannot be called from a running event loop"
+        },
+        {
+          "task_id": "sqlfluff__sqlfluff-2419",
+          "policy": "static_flat",
+          "success": false,
+          "tokens_used": 32000,
+          "time": 0,
+          "error": "asyncio.run() cannot be called from a running event loop"
+        },
+        {
+          "task_id": "sqlfluff__sqlfluff-1733",
+          "policy": "static_flat",
+          "success": false,
+          "tokens_used": 32000,
+          "time": 0,
+          "error": "asyncio.run() cannot be called from a running event loop"
+        }
+      ]
+    }
+  },
+  "findings": [
+    "Token usage is similar across topologies"
+  ],
+  "concerns": [
+    "\u26a0\ufe0f NO TASKS SUCCEEDED - Critical issue with implementation",
+    "Communication patterns may not differ by topology",
+    "Only 3 tasks - not statistically significant"
+  ],
+  "recommendations": [
+    "Debug agent implementation and LLM integration",
+    "Run with at least 30 tasks for statistical validity"
+  ]
+}

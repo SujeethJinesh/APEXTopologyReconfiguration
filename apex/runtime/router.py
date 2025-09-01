@@ -6,9 +6,12 @@ atomic epoch switching and FIFO-preserving re-enqueue on abort.
 
 import asyncio
 import logging
-from typing import Dict, Literal, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Dict, Literal, Optional, Set, Tuple
 
 from .message import AgentID, Epoch, Message
+
+if TYPE_CHECKING:
+    from apex.controller.apex_controller import APEXController
 
 logger = logging.getLogger(__name__)
 
@@ -17,10 +20,10 @@ TopologyType = Literal["star", "chain", "flat"]
 
 # Chain topology next hop mapping
 CHAIN_NEXT = {
-    AgentID("Planner"): AgentID("Coder"),
-    AgentID("Coder"): AgentID("Runner"),
-    AgentID("Runner"): AgentID("Critic"),
-    AgentID("Critic"): None,  # End of chain
+    AgentID("planner"): AgentID("coder"),
+    AgentID("coder"): AgentID("runner"),
+    AgentID("runner"): AgentID("critic"),
+    AgentID("critic"): None,  # End of chain
 }
 
 
@@ -31,7 +34,7 @@ class Router:
     atomic epoch switching with FIFO preservation on abort.
     """
 
-    def __init__(self, queue_cap_per_agent: int = 10_000, fanout_cap: int = 2):
+    def __init__(self, queue_cap_per_agent: int = 10000, fanout_cap: int = 2):
         """Initialize router with specified queue capacity.
 
         Args:
@@ -46,12 +49,13 @@ class Router:
         self._accepting_next = False  # Set during PREPARE phase
         self._topology: TopologyType = "star"  # Default topology
         self._known_agents: Set[AgentID] = {
-            AgentID("Manager"),
-            AgentID("Planner"),
-            AgentID("Coder"),
-            AgentID("Runner"),
-            AgentID("Critic"),
+            AgentID("manager"),
+            AgentID("planner"),
+            AgentID("coder"),
+            AgentID("runner"),
+            AgentID("critic"),
         }
+        self._apex_controller: Optional["APEXController"] = None
 
     def _q(self, agent: AgentID, epoch: Epoch) -> asyncio.Queue[Message]:
         """Get or create queue for (agent, epoch) pair."""
@@ -71,6 +75,14 @@ class Router:
     def set_topology(self, topology: TopologyType):
         """Set the current topology for routing enforcement."""
         self._topology = topology
+        
+    def set_apex_controller(self, controller: Optional["APEXController"]):
+        """Set the APEX controller for message monitoring.
+        
+        Args:
+            controller: APEX controller instance or None
+        """
+        self._apex_controller = controller
 
     def _validate_topology(self, msg: Message) -> bool:
         """Validate message against topology constraints.
@@ -82,14 +94,14 @@ class Router:
             True if allowed by topology, False otherwise
         """
         if self._topology == "star":
-            # STAR: Only Planner hub can broadcast, no peer-to-peer
+            # STAR: Only planner hub can broadcast, no peer-to-peer
             if msg.recipient == "BROADCAST":
-                if msg.sender != AgentID("Planner"):
-                    msg.drop_reason = "invalid_topology_route: only Planner can broadcast in star"
+                if msg.sender != AgentID("planner"):
+                    msg.drop_reason = "invalid_topology_route: only planner can broadcast in star"
                     return False
                 return True
-            # All non-broadcast messages must involve Planner
-            if msg.sender != AgentID("Planner") and msg.recipient != AgentID("Planner"):
+            # All non-broadcast messages must involve planner
+            if msg.sender != AgentID("planner") and msg.recipient != AgentID("planner"):
                 msg.drop_reason = "invalid_topology_route: peer-to-peer not allowed in star"
                 return False
             return True
@@ -102,11 +114,11 @@ class Router:
 
             # Check next hop
             expected_next = CHAIN_NEXT.get(msg.sender)
-            if expected_next is None and msg.sender == AgentID("Critic"):
-                # Special case: Critic can send back to Manager
-                if msg.recipient == AgentID("Manager"):
+            if expected_next is None and msg.sender == AgentID("critic"):
+                # Special case: critic can send back to manager
+                if msg.recipient == AgentID("manager"):
                     return True
-                msg.drop_reason = "invalid_chain_hop: Critic can only send to Manager"
+                msg.drop_reason = "invalid_chain_hop: critic can only send to manager"
                 return False
 
             if msg.recipient != expected_next:
@@ -138,6 +150,10 @@ class Router:
         Returns:
             True if queued successfully, False if rejected or queue full
         """
+        # Notify APEX controller if present
+        if self._apex_controller:
+            self._apex_controller.process_message(msg)
+        
         # Validate topology constraints
         if not self._validate_topology(msg):
             # drop_reason already set by _validate_topology
@@ -216,6 +232,31 @@ class Router:
         # unless the switch has been COMMITTED
         # During PREPARE/QUIESCE, messages go to next but cannot be dequeued
         return None
+    
+    async def drain_all_active_queues(self) -> int:
+        """Drain all messages from active epoch queues.
+        
+        This is useful for test cleanup and ensuring clean topology switches.
+        
+        Returns:
+            int: Number of messages drained
+        """
+        drained_count = 0
+        
+        # Drain all known agent queues
+        for agent in self._known_agents:
+            agent_id = AgentID(agent)
+            q_active = self._q(agent_id, self._active_epoch)
+            
+            # Drain this agent's queue
+            while True:
+                try:
+                    q_active.get_nowait()
+                    drained_count += 1
+                except asyncio.QueueEmpty:
+                    break
+        
+        return drained_count
 
     def enable_next_buffering(self):
         """Enable buffering to next epoch (PREPARE phase)."""
@@ -228,36 +269,42 @@ class Router:
         self._accepting_next = False
 
     def reenqueue_next_into_active(self):
-        """Re-enqueue next epoch messages into active (ABORT phase).
+        """Re-enqueue next epoch messages into active (ABORT phase) - optimized.
 
         Preserves FIFO order when moving messages back.
         """
-        # Collect all next-epoch queues
-        for (agent, epoch), q_next in list(self._queues.items()):
-            if epoch == self._next_epoch:
-                q_active = self._q(agent, self._active_epoch)
-
-                # FIFO preservation: dequeue from front, enqueue to back
-                messages_to_move = []
-                while not q_next.empty():
-                    try:
-                        msg = q_next.get_nowait()  # FIFO get from next
-                        messages_to_move.append(msg)
-                    except asyncio.QueueEmpty:
-                        break
-
-                # Re-enqueue in same FIFO order
-                for msg in messages_to_move:
+        # Pre-filter next-epoch queues for efficiency
+        next_queues = [(agent, q_next) for (agent, epoch), q_next in self._queues.items()
+                      if epoch == self._next_epoch]
+        
+        # Process all queues in batch
+        for agent, q_next in next_queues:
+            if q_next.empty():
+                continue  # Skip empty queues early
+                
+            q_active = self._q(agent, self._active_epoch)
+            
+            # Batch dequeue for efficiency
+            messages_to_move = []
+            while not q_next.empty():
+                try:
+                    msg = q_next.get_nowait()
                     msg.redelivered = True
-                    try:
-                        q_active.put_nowait(msg)  # FIFO put to active
-                    except asyncio.QueueFull:
-                        msg.drop_reason = "Queue full on ABORT re-enqueue"
-                        # Log dropped message in production
-                        logger.warning(
-                            "Message dropped on ABORT re-enqueue",
-                            extra={"msg_id": msg.msg_id, "agent": str(agent)},
-                        )
+                    messages_to_move.append(msg)
+                except asyncio.QueueEmpty:
+                    break
+            
+            # Batch re-enqueue
+            for msg in messages_to_move:
+                try:
+                    q_active.put_nowait(msg)
+                except asyncio.QueueFull:
+                    msg.drop_reason = "Queue full on ABORT re-enqueue"
+                    # Log dropped message in production
+                    logger.warning(
+                        "Message dropped on ABORT re-enqueue",
+                        extra={"msg_id": msg.msg_id, "agent": str(agent)},
+                    )
 
         self._accepting_next = False
 
@@ -279,8 +326,9 @@ class Router:
         return 0
 
     def is_active_drained(self) -> bool:
-        """Check if all active epoch queues are empty."""
-        for (agent, epoch), q in self._queues.items():
-            if epoch == self._active_epoch and not q.empty():
-                return False
-        return True
+        """Check if all active epoch queues are empty - optimized for speed."""
+        # Use list comprehension for faster iteration
+        active_queues = [q for (agent, epoch), q in self._queues.items() 
+                        if epoch == self._active_epoch]
+        # Quick check using any() - stops at first non-empty
+        return not any(not q.empty() for q in active_queues)

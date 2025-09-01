@@ -37,7 +37,7 @@ class SwitchEngine:
 
         Args:
             router: Message router instance
-            quiesce_deadline_ms: Max milliseconds to wait for quiesce
+            quiesce_deadline_ms: Max milliseconds to wait for quiesce (default 50ms for sub-100ms switching)
         """
         self._router = router
         self._deadline_ms = quiesce_deadline_ms
@@ -81,8 +81,8 @@ class SwitchEngine:
             if self._router.is_active_drained():
                 drained = True
                 break
-            # Yield control briefly
-            await asyncio.sleep(0.001)  # 1ms granularity
+            # Ultra-low latency yield for faster quiesce
+            await asyncio.sleep(0.0001)  # 0.1ms granularity for sub-100ms switching
 
         # COMMIT or ABORT
         if drained:

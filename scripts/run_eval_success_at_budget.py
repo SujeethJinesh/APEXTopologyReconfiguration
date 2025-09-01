@@ -12,18 +12,21 @@ from pathlib import Path
 # Add parent to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from apex.controller.bandit_v1 import BanditSwitchV1
+# Always enable LLM and network for evaluations
+os.environ["APEX_ALLOW_LLM"] = "1"
+os.environ["APEX_ALLOW_NETWORK"] = "1"
+
 from apex.eval.harness import EvalHarness
-from apex.eval.stubs.topology_switch import TopologySwitch
+# Note: Dynamic topology switching removed - only static topologies supported
 
 
 def main():
     parser = argparse.ArgumentParser(description="Run Success@Budget evaluation")
     parser.add_argument("--episodes", type=int, default=12, help="Number of episodes")
-    parser.add_argument("--budget", type=int, default=10000, help="Token budget per episode")
+    parser.add_argument("--budget", type=int, default=32000, help="Token budget per episode")
     parser.add_argument(
         "--policy",
-        choices=["static_star", "static_chain", "static_flat", "bandit_v1"],
+        choices=["static_star", "static_chain", "static_flat"],
         required=True,
         help="Policy to evaluate"
     )
@@ -68,7 +71,53 @@ def main():
         help="Path to frozen task list JSONL (ensures identical tasks across policies)"
     )
     
+    # Timeout options
+    parser.add_argument(
+        "--episode-timeout-s",
+        type=int,
+        default=1800,
+        help="Episode timeout in seconds (default 30 min)"
+    )
+    parser.add_argument(
+        "--llm-timeout-s",
+        type=int,
+        default=180,
+        help="Per-LLM-request timeout in seconds (default 3 min)"
+    )
+    parser.add_argument(
+        "--progress-extend-s",
+        type=int,
+        default=120,
+        help="Extend episode timeout by this when progress detected (default 2 min)"
+    )
+    parser.add_argument(
+        "--eager-llm-start",
+        action="store_true",
+        help="Start & warmup LLM workers before first episode step"
+    )
+    
+    # LLM backend options
+    parser.add_argument(
+        "--llm-backend",
+        choices=["llama_cpp_metal", "hf_cuda"],
+        default="llama_cpp_metal",
+        help="LLM backend to use"
+    )
+    parser.add_argument(
+        "--num-llm-instances",
+        type=int,
+        default=5,
+        help="Number of LLM instances (processes)"
+    )
+    
     args = parser.parse_args()
+    
+    # Set environment variables from CLI args
+    os.environ["APEX_EPISODE_TIMEOUT_S"] = str(args.episode_timeout_s)
+    os.environ["APEX_LLM_TIMEOUT_S"] = str(args.llm_timeout_s)
+    os.environ["APEX_PROGRESS_EXTENSION_S"] = str(args.progress_extend_s)
+    os.environ["APEX_LLM_BACKEND"] = args.llm_backend
+    os.environ["APEX_NUM_LLM_INSTANCES"] = str(args.num_llm_instances)
     
     # Network gating check for SWE mode
     if args.mode == "swe" and not args.offline:
@@ -76,6 +125,12 @@ def main():
             print("Error: SWE mode requires network access.")
             print("Either set APEX_ALLOW_NETWORK=1 or use --offline with fixtures.")
             sys.exit(1)
+    
+    # Block stub backend in real mode
+    if args.mode != "stub" and os.getenv("APEX_LLM_BACKEND", "") == "stub":
+        print("Error: Refusing to run real mode with stub backend.")
+        print("Set APEX_LLM_BACKEND=llama_cpp_metal for Mac or hf_cuda for GPU.")
+        sys.exit(1)
     
     # Load task list if provided
     task_list = None
@@ -91,7 +146,6 @@ def main():
     
     # Initialize harness
     harness = EvalHarness(
-        mode=args.mode,
         seed=args.seed,
         split=args.split,
         limit=args.limit,
@@ -100,6 +154,19 @@ def main():
         task_list=task_list,  # Pass frozen task list if provided
     )
     
+    # Eager LLM start if requested
+    if args.eager_llm_start and args.mode != "stub":
+        print("Starting and warming up LLM workers...")
+        import asyncio
+        from apex.llm.client import PortableLLMClient, LLMConfig
+        from apex.config import defaults
+        print(f"DEBUG: defaults.LLM_NUM_INSTANCES = {defaults.LLM_NUM_INSTANCES}")
+        config = LLMConfig()
+        print(f"DEBUG: LLMConfig.num_instances = {config.num_instances}")
+        llm_client = PortableLLMClient(config)
+        asyncio.run(llm_client.warmup_all("warmup", 1))
+        print("LLM workers ready")
+    
     # Load tasks
     if task_list:
         # When using task list, episodes should match task list length
@@ -107,12 +174,7 @@ def main():
     else:
         tasks = harness.load_tasks(n_episodes=args.episodes)
     
-    # Setup switch and bandit for dynamic policy
-    switch = None
-    bandit = None
-    if args.policy == "bandit_v1":
-        switch = TopologySwitch(initial="star", seed=args.seed)
-        bandit = BanditSwitchV1(d=8, seed=args.seed)
+    # Static policies only - no dynamic switching
     
     # Run episodes and collect results
     results = []
@@ -121,8 +183,6 @@ def main():
             task=task,
             policy=args.policy,
             budget=args.budget,
-            switch=switch,
-            bandit=bandit
         )
         results.append(result)
     
@@ -146,10 +206,6 @@ def main():
     print(f"Successes: {successes}/{total} ({100*successes/total:.1f}%)")
     print(f"Over budget: {over_budget}/{total} ({100*over_budget/total:.1f}%)")
     print(f"Avg tokens: {avg_tokens:.0f}")
-    
-    if args.policy == "bandit_v1":
-        total_switches = sum(r.epoch_switches for r in results)
-        print(f"Total epoch switches: {total_switches}")
     
     print(f"Output written to: {output_path}")
     
