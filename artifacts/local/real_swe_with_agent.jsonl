@@ -1,1 +1,0 @@
-{"task_id": "sqlfluff__sqlfluff-1625", "policy": "bandit_v1", "success": false, "tokens_used": 10000, "over_budget": false, "budget": 10000, "seed": 42, "epoch_switches": 0, "notes": "mode=swe,topology_pref=star"}

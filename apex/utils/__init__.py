@@ -1,1 +1,1 @@
-"""Utilities package."""
+"""Utility modules for APEX framework."""

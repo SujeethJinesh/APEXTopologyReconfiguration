@@ -4,9 +4,15 @@ import json
 from pathlib import Path
 from typing import Any, Optional
 
-from apex.controller.bandit_v1 import ACTION_MAP, BanditSwitchV1
-from apex.controller.features import FeatureSource
-from apex.controller.reward import RewardAccumulator
+from apex.controllers.features import FeatureSource
+from apex.controllers.bandit import EpsilonGreedyBandit
+
+# Action mapping for topologies
+ACTION_MAP = {
+    0: "star",
+    1: "chain", 
+    2: "flat"
+}
 
 
 class APEXController:
@@ -18,27 +24,36 @@ class APEXController:
 
     def __init__(
         self,
-        bandit: BanditSwitchV1,
         feature_src: FeatureSource,
         coordinator: Any,
         switch: Any,
         budget: int = 10_000,
+        epsilon: float = 0.1,
+        seed: int = None,
     ):
         """Initialize controller.
 
         Args:
-            bandit: BanditSwitch v1 policy
             feature_src: Feature extractor
             coordinator: Coordinator for switch requests (enforces dwell/cooldown)
             switch: SwitchEngine for topology changes
             budget: Token budget
+            epsilon: Exploration rate for bandit
+            seed: Random seed for reproducibility
         """
-        self.bandit = bandit
         self.feature_src = feature_src
         self.coordinator = coordinator
         self.switch = switch
         self.budget = budget
-        self.reward_acc = RewardAccumulator()
+        self.current_topology = "star"  # Default topology
+        
+        # Initialize epsilon-greedy bandit
+        self.bandit = EpsilonGreedyBandit(
+            n_actions=3,  # star, chain, flat
+            n_features=12,  # matches feature extractor output
+            epsilon=epsilon,
+            seed=seed
+        )
 
         # Decision logging
         self.decision_log = []
@@ -85,7 +100,8 @@ class APEXController:
         x = self.feature_src.vector()
 
         # Get bandit decision
-        decision = self.bandit.decide(x)
+        # Use epsilon-greedy bandit for topology selection
+        decision = self.bandit.select_action(x)
         action_idx = decision["action"]
         action_name = ACTION_MAP[action_idx]
 
@@ -148,6 +164,7 @@ class APEXController:
             action_idx = list(ACTION_MAP.values()).index(action_name)
 
             # Update bandit
+            # Update bandit with observed reward
             self.bandit.update(x, action_idx, reward)
 
         # Log reward
@@ -201,5 +218,5 @@ class APEXController:
             "steps": self.step_count,
             "decisions": len(self.decision_log),
             "rewards": len(self.reward_log),
-            "bandit": self.bandit.stats(),
+            "bandit": self.bandit.get_stats(),
         }

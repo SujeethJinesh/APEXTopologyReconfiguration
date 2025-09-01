@@ -88,3 +88,10 @@ EPISODE_TIMEOUT_MAX_S = APEX_EPISODE_TIMEOUT_MAX_S  # Alias
 
 # Progress heartbeat interval in seconds
 HEARTBEAT_INTERVAL_S = int(os.getenv("APEX_HEARTBEAT_INTERVAL_S", "20"))
+
+# ===== Additional Configuration =====
+# Warmup tokens for LLM initialization
+WARMUP_TOKENS = int(os.getenv("APEX_WARMUP_TOKENS", "128"))
+
+# Network access control
+ALLOW_NETWORK = bool(int(os.getenv("APEX_ALLOW_NETWORK", "1")))

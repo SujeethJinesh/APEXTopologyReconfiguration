@@ -11,11 +11,9 @@ from pathlib import Path
 from typing import Any, List, Optional, Tuple
 
 from apex.agents.message_swe_agent import MessageSWEAgent
-from apex.controller.bandit_v1 import BanditSwitchV1
 
 # APEX system components for dynamic topology switching
-from apex.controller.controller import APEXController
-from apex.controller.features import FeatureSource
+from apex.controllers.apex_controller import APEXController
 from apex.runtime.coordinator import Coordinator
 from apex.runtime.message import AgentID
 from apex.runtime.router import Router
@@ -197,7 +195,7 @@ class EvalHarness:
         policy: str,
         budget: int,
         switch: Optional[Any] = None,
-        bandit: Optional[BanditSwitchV1] = None,
+        bandit: Optional[Any] = None,  # BanditSwitchV1
     ) -> TaskResult:
         """Run a single episode with budget enforcement.
 
@@ -235,7 +233,12 @@ class EvalHarness:
             success, tokens_used, epoch_switches = self._run_apex_swe_episode(swe_record, budget)
         else:
             # Use existing static policy behavior
-            success, tokens_used = self._run_swe_episode(swe_record, budget)
+            # Convert async to sync for compatibility with existing code
+            import asyncio
+
+            import nest_asyncio
+            nest_asyncio.apply()  # Allow nested event loops
+            success, tokens_used = asyncio.run(self._run_swe_episode(swe_record, budget))
 
         # Success is determined by test execution
         task.expected_success = success
@@ -264,7 +267,7 @@ class EvalHarness:
             notes=f"topology_pref={task.topology_preference}",
         )
 
-    def _run_swe_episode(self, record: SWERecord, budget_tokens: int) -> Tuple[bool, int]:
+    async def _run_swe_episode(self, record: SWERecord, budget_tokens: int) -> Tuple[bool, int]:
         """Run a SWE-bench episode with actual repository and tests.
 
         Args:
@@ -303,103 +306,68 @@ class EvalHarness:
                 )
                 return success, tokens_used
 
-            # NEW: Use improved SWE agent V2 to attempt solving the task
-            try:
-                self.logger.info("[EVAL] Loading SWE Agent V2")
-                from apex.agents.swe_agent_v2 import SWEAgentV2
-            except ImportError:
-                # Fall back to V1 if V2 not available
-                self.logger.warning("[EVAL] SWE Agent V2 not available, falling back to V1")
-                from apex.agents.swe_agent import SWEAgent as SWEAgentV2
+            # Create LLM client for agent reasoning
+            self.logger.info("[EVAL] Creating LLM client for agent reasoning")
+            import os
 
-            # Check if LLM client is available
-            llm_client = getattr(self, "llm_client", None)
-            if llm_client is None:
-                # Try to create one if not provided
-                try:
-                    import asyncio
-
-                    from apex.config.swe_config import get_swe_config
-                    from apex.llm.client import LLMClient, LLMConfig
-                    from apex.utils.memory_monitor import check_memory_for_llm, log_memory_status
-
-                    # Use SWE-optimized config
-                    swe_cfg = get_swe_config()
-
-                    # Check memory before starting
-                    log_memory_status("[SWE] Before LLM start: ")
-                    can_start, msg = check_memory_for_llm(
-                        num_instances=swe_cfg["num_instances"],
-                        gb_per_instance=swe_cfg["max_memory_per_instance_gb"],
-                    )
-
-                    if not can_start:
-                        print(f"[SWE] {msg}")
-                        raise RuntimeError("Insufficient memory for LLM")
-
-                    print(f"[SWE] {msg}")
-
-                    # Create LLM with SWE config
-                    llm_config = LLMConfig(
-                        num_instances=swe_cfg["num_instances"], timeout_s=swe_cfg["timeout_s"]
-                    )
-                    llm_client = LLMClient(llm_config)
-
-                    # Start with timeout
-                    asyncio.run(llm_client.ensure_started())
-                except Exception as e:
-                    self.logger.warning(f"[EVAL] Could not create LLM client: {e}")
-                    # Fall back to old behavior
-                    self.logger.info("[EVAL] Falling back to test-only mode")
-                    test_result = RepoManager.run_tests(
-                        repo_path=repo_path,
-                        test_select=record.fail_to_pass if record.fail_to_pass else None,
-                        timeout_s=180,
-                    )
-                    success = test_result["exit_code"] == 0 and test_result["failed"] == 0
-                    tokens_used = int(test_result["duration_s"] * 100) + 1000
-                    return success, tokens_used
-
-            # Create V2 agent with improved prompts and error handling
-            agent = SWEAgentV2(llm_client=llm_client)
-            self.logger.info("[EVAL] Created agent, starting solve task")
-
-            # Run agent asynchronously
-            import asyncio
-
-            agent_start = time.time()
-            success, tokens_used = asyncio.run(
-                agent.solve_task(
-                    problem_statement=record.problem_statement,
-                    repo_path=Path(repo_path),
-                    fail_tests=record.fail_to_pass if record.fail_to_pass else [],
-                    budget=budget_tokens,
-                )
+            from apex.llm.client import LLMConfig, PortableLLMClient
+            
+            # Ensure LLM is enabled
+            os.environ["APEX_ALLOW_LLM"] = "1"
+            os.environ["APEX_ALLOW_NETWORK"] = "1"
+            
+            # Create LLM client with 3 instances
+            llm_config = LLMConfig(num_instances=3, timeout_s=180)
+            llm_client = PortableLLMClient(config=llm_config)
+            
+            # Start LLM instances
+            await llm_client.ensure_started()
+            
+            # Create MessageSWEAgent for collaborative solving
+            self.logger.info("[EVAL] Creating MessageSWEAgent for collaborative solving")
+            from apex.agents.message_swe_agent import MessageSWEAgent
+            from apex.integrations.mcp.fs_api import FS
+            from apex.runtime.message import AgentID
+            from apex.runtime.router import Router
+            from apex.runtime.switch import SwitchEngine
+            
+            # Initialize router and switch for message passing
+            router = Router()
+            switch = SwitchEngine()
+            fs = FS()
+            
+            # Create the message-based SWE agent
+            message_agent = MessageSWEAgent(
+                agent_id=AgentID("SWE-Coordinator"),
+                router=router,
+                switch=switch,
+                fs=fs,
+                episode_id=record.task_id,
+                llm=llm_client
             )
-            agent_time = time.time() - agent_start
-            self.logger.info(
-                f"[EVAL] Agent completed: success={success}, tokens={tokens_used}, "
-                f"time={agent_time:.2f}s"
+            
+            # Solve the task using collaborative agents
+            self.logger.info(f"[EVAL] Starting collaborative solving for {record.task_id}")
+            success, tokens_used = await message_agent.solve_task(
+                problem_statement=record.problem_statement,
+                repo_path=Path(repo_path),
+                fail_tests=record.fail_to_pass if record.fail_to_pass else [],
+                budget=budget_tokens
             )
-
+            
+            self.logger.info(f"[EVAL] Agent completed: success={success}, tokens={tokens_used}")
+            
             # If agent claims success, verify with actual test run
             if success:
                 self.logger.info("[EVAL] Agent claims success, verifying with tests")
-                verify_start = time.time()
                 test_result = RepoManager.run_tests(
                     repo_path=repo_path,
                     test_select=record.fail_to_pass if record.fail_to_pass else None,
                     timeout_s=180,
                 )
-                verify_time = time.time() - verify_start
                 success = test_result["exit_code"] == 0 and test_result["failed"] == 0
-                self.logger.info(
-                    f"[EVAL] Verification: passed={test_result.get('passed', 0)}, "
-                    f"failed={test_result.get('failed', 0)}, exit_code={test_result['exit_code']}, "
-                    f"time={verify_time:.2f}s"
-                )
-                self.logger.info(f"[EVAL] Final task success: {success}")
-
+                self.logger.info(f"[EVAL] Test verification: {success}")
+            
             return success, tokens_used
 
         except Exception as e:
@@ -468,6 +436,9 @@ class EvalHarness:
             coordinator = Coordinator(switch_engine=switch_engine)
 
             # 4. Create BanditSwitchV1 for topology decisions
+            from apex.controllers.bandit_switch import BanditSwitchV1
+            from apex.controllers.feature_source import FeatureSource
+            
             bandit = BanditSwitchV1(
                 epsilon_start=0.3, epsilon_end=0.1, epsilon_decay=0.995, learning_rate=0.01
             )
@@ -488,10 +459,13 @@ class EvalHarness:
             episode_id = str(uuid.uuid4())
             agent_id = AgentID("message_swe_agent")
 
-            # Create LLM and FS instances (simplified for now)
+            # Create LLM and FS instances 
             llm = None  # Will use default LLM client from existing harness logic
-            fs = None  # Will use filesystem operations through RepoManager
-
+            
+            # Create MCP filesystem adapter sandboxed to repo path
+            from apex.integrations.mcp.fs_local import LocalFS
+            fs = LocalFS(root=str(repo_path))
+            
             message_agent = MessageSWEAgent(
                 agent_id=agent_id,
                 router=router,
@@ -511,24 +485,54 @@ class EvalHarness:
                     # Start the APEX controller monitoring in the background
                     controller_task = None
                     try:
-                        # Start controller tick loop
+                        # Enhanced controller loop with phase awareness
                         async def controller_loop():
+                            last_phase = "analysis"
+                            phase_start_time = time.time()
+                            
                             while True:
-                                decision = await controller.tick()
-                                coordinator.step()
-
-                                # Track topology switches
-                                if decision.get("switch", {}).get("committed", False):
-                                    nonlocal epoch_switches
-                                    epoch_switches += 1
-                                    topo_after = decision.get("topology_after")
+                                # Check current task phase
+                                current_phase = None
+                                if message_agent.active_tasks:
+                                    task = next(iter(message_agent.active_tasks.values()))
+                                    current_phase = task.phase
+                                
+                                # Phase transition detected - good time to consider switching
+                                if current_phase and current_phase != last_phase:
+                                    phase_duration = time.time() - phase_start_time
                                     self.logger.info(
-                                        f"[EVAL] Topology switched to {topo_after}, "
-                                        f"total switches: {epoch_switches}"
+                                        f"[APEX] Phase transition: {last_phase} -> {current_phase} "
+                                        f"(duration: {phase_duration:.1f}s)"
                                     )
+                                    
+                                    # Update feature source with phase info
+                                    controller.features.update_phase(current_phase)
+                                    
+                                    # Controller decides on topology
+                                    decision = await controller.tick()
+                                    coordinator.step()
 
-                                # Brief pause between controller ticks
-                                await asyncio.sleep(0.1)
+                                    # Track topology switches
+                                    if decision.get("switch", {}).get("committed", False):
+                                        nonlocal epoch_switches
+                                        epoch_switches += 1
+                                        topo_after = decision.get("topology_after")
+                                        self.logger.info(
+                                            f"[EVAL] Topology switched to {topo_after} for "
+                                            f"{current_phase} phase, switches: {epoch_switches}"
+                                        )
+                                        
+                                        # Notify agents of topology change
+                                        if hasattr(message_agent, '_notify_topology_change'):
+                                            await message_agent._notify_topology_change(
+                                                task.task_id, topo_after
+                                            )
+                                    
+                                    last_phase = current_phase
+                                    phase_start_time = time.time()
+
+                                # Regular controller tick
+                                await asyncio.sleep(1.0)  # Check less frequently
 
                         # Start controller in background
                         controller_task = asyncio.create_task(controller_loop())

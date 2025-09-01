@@ -1,2 +1,0 @@
-{"task_id": "pydicom__pydicom-901"}
-{"__meta__": {"split": "dev", "split_source": "dev", "dataset": "SWE-bench/SWE-bench_Lite", "seed": 42, "n": 1, "generated_by": "scripts/generate_real_task_list.py"}}

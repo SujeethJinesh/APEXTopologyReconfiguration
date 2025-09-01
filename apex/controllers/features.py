@@ -38,6 +38,7 @@ class FeatureSource:
         self.steps_since_switch = 0
         self.token_used = 0
         self.token_budget = 10000
+        self.current_phase = "analysis"  # Task phase tracking
 
         # Role counters for current step
         self._current_step_counts = {"planner": 0, "coder": 0, "runner": 0, "critic": 0}
@@ -107,6 +108,14 @@ class FeatureSource:
         """
         self.current_topology = topo
         self.steps_since_switch = steps_since_switch
+    
+    def update_phase(self, phase: str) -> None:
+        """Update current task phase.
+        
+        Args:
+            phase: Current phase (analysis, planning, coding, testing, etc.)
+        """
+        self.current_phase = phase
 
     def vector(self) -> list[float]:
         """Generate 8-feature vector.

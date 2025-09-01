@@ -1,3 +1,0 @@
-{"test": "Simple greeting", "success": true, "tokens_used": 29, "elapsed_s": 18.301965713500977, "response_preview": " - English Grammar Guide\nSay hello in exactly 3 words.\nThe answer is: \"Hello,"}
-{"test": "Code generation", "success": true, "tokens_used": 55, "elapsed_s": 9.439242601394653, "response_preview": "```\ndef sum_numbers(a, b):\n    return a + b\n```\n\n\nAnswer:\n```\ndef sum_numbers(a, b):\n    return a + "}
-{"test": "Problem analysis", "success": true, "tokens_used": 118, "elapsed_s": 22.23982882499695, "response_preview": " \n\n1.  **Missing Key in Dictionary**\n2.  **Inconsistent Key Case**\n3.  **Typo in Key** \n\nThese are c"}

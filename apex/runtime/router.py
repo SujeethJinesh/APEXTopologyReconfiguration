@@ -6,9 +6,12 @@ atomic epoch switching and FIFO-preserving re-enqueue on abort.
 
 import asyncio
 import logging
-from typing import Dict, Literal, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Dict, Literal, Optional, Set, Tuple
 
 from .message import AgentID, Epoch, Message
+
+if TYPE_CHECKING:
+    from apex.controller.apex_controller import APEXController
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +34,7 @@ class Router:
     atomic epoch switching with FIFO preservation on abort.
     """
 
-    def __init__(self, queue_cap_per_agent: int = 10_000, fanout_cap: int = 2):
+    def __init__(self, queue_cap_per_agent: int = 10000, fanout_cap: int = 2):
         """Initialize router with specified queue capacity.
 
         Args:
@@ -52,6 +55,7 @@ class Router:
             AgentID("runner"),
             AgentID("critic"),
         }
+        self._apex_controller: Optional["APEXController"] = None
 
     def _q(self, agent: AgentID, epoch: Epoch) -> asyncio.Queue[Message]:
         """Get or create queue for (agent, epoch) pair."""
@@ -71,6 +75,14 @@ class Router:
     def set_topology(self, topology: TopologyType):
         """Set the current topology for routing enforcement."""
         self._topology = topology
+        
+    def set_apex_controller(self, controller: Optional["APEXController"]):
+        """Set the APEX controller for message monitoring.
+        
+        Args:
+            controller: APEX controller instance or None
+        """
+        self._apex_controller = controller
 
     def _validate_topology(self, msg: Message) -> bool:
         """Validate message against topology constraints.
@@ -138,6 +150,10 @@ class Router:
         Returns:
             True if queued successfully, False if rejected or queue full
         """
+        # Notify APEX controller if present
+        if self._apex_controller:
+            self._apex_controller.process_message(msg)
+        
         # Validate topology constraints
         if not self._validate_topology(msg):
             # drop_reason already set by _validate_topology
